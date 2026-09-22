@@ -4,7 +4,7 @@
 
 This fork is [o37-Group/Cap](https://github.com/o37-Group/Cap). Its upstream is [CapSoftware/Cap](https://github.com/CapSoftware/Cap). The deployment target is `https://cap.o37group.com`.
 
-The Railway project, MySQL service, media server, Cloudflare R2 bucket, and custom domain object have been created. The web deployment and DNS still need verification. Authentication email, video storage, and AI requests cannot work until the missing provider credentials and entitlements listed below are supplied. Do not treat a successful container deployment as application acceptance.
+The Railway web, MySQL, and media services report successful deployments. The web container started, applied its database migrations, and passed Railway's health check on 2026-09-22 at 23:14 UTC. The Cloudflare R2 bucket and Railway custom domain object exist. Public DNS and end-to-end application behavior are not verified. Authentication email, video storage, and AI requests cannot work until the missing provider credentials and entitlements listed below are supplied. Do not treat a successful container deployment as application acceptance.
 
 No Railway object storage bucket was created. Recordings must use the private Cloudflare R2 bucket after its S3 credentials are configured.
 
@@ -15,7 +15,7 @@ No Railway object storage bucket was created. Recordings must use the private Cl
 | Railway workspace | `e76 Systems` | Existing workspace used for this project. |
 | Railway project | `o37 Group Cap` / `2c7e9d6b-a684-4df3-90dd-926063b7c838` | Existing empty project reused for Cap. |
 | Railway production environment | `e74138eb-6826-4f01-a1f8-cde26c11c9fc` | Active. |
-| Railway web service | `cap-web` / `9974e6c9-5d20-4d3f-96ec-0341f89b3ea4` | Dockerfile at `apps/web/Dockerfile`; local CLI deployment while GitHub integration is unauthorized. |
+| Railway web service | `cap-web` / `9974e6c9-5d20-4d3f-96ec-0341f89b3ea4` | Deployment `d855f30f-4520-4d1e-9c5e-c7d64b2f2cf6` reported `SUCCESS`. Local CLI deployment while GitHub integration is unauthorized. |
 | Railway media service | `media-server` / `772c4f7e-839c-4900-b1e1-92427c9230e5` | `ghcr.io/capsoftware/cap-media-server:latest`; deployment reported `SUCCESS`. |
 | Railway MySQL service | `mysql` / `c16557b8-e4b1-4db2-b478-b816005925d7` | `mysql:8.0`; deployment reported `SUCCESS`. |
 | Railway MySQL volume | `cap-mysql-data` / `59a4024f-f005-408e-a378-680f40290368` | Mounted at `/var/lib/mysql` in `sfo`. |
