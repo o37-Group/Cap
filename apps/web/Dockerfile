@@ -1,5 +1,3 @@
-# syntax=docker.io/docker/dockerfile:1
-
 FROM oven/bun:1.4.0-alpine AS bun
 
 FROM node:24-alpine AS base
@@ -9,7 +7,7 @@ WORKDIR /app
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY . .
 
-RUN --mount=type=cache,id=bun-1.4.0,target=/root/.bun/install/cache bun install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 ARG NEXT_PUBLIC_DOCKER_BUILD=true
 ARG NEXT_PUBLIC_WEB_URL=https://cap.o37group.com
