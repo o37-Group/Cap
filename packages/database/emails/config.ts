@@ -36,6 +36,16 @@ export const sendEmail = async ({
 	}[];
 }) => {
 	const env = serverEnv();
+	if (
+		buildEnv.NEXT_PUBLIC_IS_CAP !== "true" &&
+		[email, ...(Array.isArray(cc) ? cc : cc ? [cc] : [])].some((address) =>
+			/@(?:[^,<>\s]+\.)?cap\.so\s*>?$/i.test(address),
+		)
+	) {
+		throw new Error(
+			"This self-hosted installation cannot send email to Cap Software addresses",
+		);
+	}
 	const cloudflareToken = env.CLOUDFLARE_EMAIL_API_TOKEN;
 	const r = cloudflareToken ? null : resend();
 	if (!cloudflareToken && !r) {
