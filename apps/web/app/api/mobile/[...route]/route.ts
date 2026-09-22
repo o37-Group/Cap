@@ -153,9 +153,11 @@ const hashEmailCode = (code: string) =>
 		.digest("hex");
 
 const sendMobileEmailCode = async (email: string, code: string) => {
-	if (!serverEnv().RESEND_API_KEY) {
+	if (!serverEnv().RESEND_API_KEY && !serverEnv().CLOUDFLARE_EMAIL_API_TOKEN) {
 		if (process.env.NODE_ENV === "production") {
-			throw new Error("RESEND_API_KEY is required to send mobile email codes");
+			throw new Error(
+				"An email provider is required to send mobile email codes",
+			);
 		}
 		console.log("");
 		console.log("Cap mobile verification code");

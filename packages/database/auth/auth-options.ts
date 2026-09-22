@@ -145,7 +145,10 @@ export const authOptions = (ssoContext?: SsoAuthContext): NextAuthOptions => {
 						return crypto.randomInt(100000, 1000000).toString();
 					},
 					async sendVerificationRequest({ identifier, token }) {
-						if (!serverEnv().RESEND_API_KEY) {
+						if (
+							!serverEnv().RESEND_API_KEY &&
+							!serverEnv().CLOUDFLARE_EMAIL_API_TOKEN
+						) {
 							console.log("\n");
 							console.log(
 								"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
