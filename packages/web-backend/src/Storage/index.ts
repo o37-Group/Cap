@@ -496,7 +496,7 @@ const makeS3Access = (s3: S3BucketAccess) => ({
 	multipart: makeS3MultipartAccess(s3),
 	createUploadTarget: (key: string, input: UploadTargetInput) =>
 		Effect.gen(function* () {
-			if (input.method === "put") {
+			if (input.method === "put" || serverEnv().S3_UPLOAD_METHOD === "put") {
 				const url = yield* s3
 					.getPresignedPutUrl(
 						key,
