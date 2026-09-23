@@ -15,7 +15,7 @@ No Railway object storage bucket was created. Recordings must use the private Cl
 | Railway workspace | `e76 Systems` | Existing workspace used for this project. |
 | Railway project | `o37 Group Cap` / `2c7e9d6b-a684-4df3-90dd-926063b7c838` | Existing empty project reused for Cap. |
 | Railway production environment | `e74138eb-6826-4f01-a1f8-cde26c11c9fc` | Active. |
-| Railway web service | `cap-web` / `9974e6c9-5d20-4d3f-96ec-0341f89b3ea4` | Deployment `d855f30f-4520-4d1e-9c5e-c7d64b2f2cf6` reported `SUCCESS`. Local CLI deployment while GitHub integration is unauthorized. |
+| Railway web service | `cap-web` / `9974e6c9-5d20-4d3f-96ec-0341f89b3ea4` | GitHub source `o37-Group/Cap@main`; deployment `43ac608a-8763-4d3e-b946-c20f907b53d0` of commit `4e2866c6550f579966b0f4375510e42cd4b94de9` reported `SUCCESS`. |
 | Railway media service | `media-server` / `772c4f7e-839c-4900-b1e1-92427c9230e5` | `ghcr.io/capsoftware/cap-media-server:latest`; deployment reported `SUCCESS`. |
 | Railway MySQL service | `mysql` / `c16557b8-e4b1-4db2-b478-b816005925d7` | `mysql:8.0`; deployment reported `SUCCESS`. |
 | Railway MySQL volume | `cap-mysql-data` / `59a4024f-f005-408e-a378-680f40290368` | Mounted at `/var/lib/mysql` in `sfo`. |
@@ -59,13 +59,13 @@ AI_CHAT_MODEL=openai/gpt-4.1-mini
 AI_STREAM_MODEL=openai/gpt-4.1-mini
 ```
 
-The media service also has `PORT=3456`. The web service uses the fork's Dockerfile. Railway's GitHub integration could not access `o37-Group/Cap` during setup or on the 2026-09-23 retry: connecting the source returned `User does not have access to the repo`. The current successful web image came from `railway up` in the checked-out fork. Pushes to GitHub do not deploy automatically yet.
+The media service also has `PORT=3456`. The web service uses the fork's Dockerfile. The owner granted the Railway GitHub App access to `o37-Group/Cap`. Railway now connects `cap-web` to `main`. The initial repository deployment built the exact commit shown in the resource table and passed its health check. Earlier web deployments used `railway up` from a local checkout.
 
-To enable automatic deployment, give the Railway GitHub App access to `o37-Group/Cap` in the GitHub organization installation settings. Confirm that a Railway project member has a connected GitHub account with contributor access. In the existing `cap-web` service, open Settings, connect `o37-Group/Cap` as its source, select `main`, and enable automatic deployments. Keep the repository root as the build context because the Dockerfile copies the monorepo. Keep the Dockerfile path `apps/web/Dockerfile` and health check `/api/health`. Wait for Railway's GitHub cache to refresh if the repository does not appear. Verify by pushing a small commit and checking that Railway builds that exact commit SHA and reports a successful deployment. Do not create a replacement web service; the current one holds the domain and variables.
+The web service keeps the repository root as its build context because the Dockerfile copies the monorepo. Its Dockerfile path is `apps/web/Dockerfile`, and its health check is `/api/health`. A pushed change to `main` should now create a new Railway deployment. Verify this with the next documentation commit by matching its SHA to a successful Railway deployment.
 
 The media service currently runs the upstream `ghcr.io/capsoftware/cap-media-server:latest` image. Changes to `apps/media-server` in this fork will not update that service. If forked media code must auto-deploy too, connect the same repository and `main` branch to the existing `media-server` service, use the repository root as build context, set Dockerfile path `apps/media-server/Dockerfile`, and verify one build and deployment. Keep the existing private networking and webhook secret. MySQL remains an image service and does not deploy from this repository.
 
-Until GitHub source access is fixed, new web commits require an explicit `railway up` from this repository.
+If a future push does not deploy, check Railway's GitHub autodeploy setting, skipped deployments, and the GitHub App's access to this repository. Do not create a replacement web service; the current service holds the domain and variables.
 
 ## Database choice
 
@@ -107,7 +107,7 @@ The owner reported connecting the domain after initial setup. Public HTTPS now r
 
 ## Acceptance checklist
 
-1. Authorize Railway's GitHub app for `o37-Group/Cap`, connect `main` to `cap-web`, and verify one commit-triggered deployment.
+1. Verify a commit pushed to `main` triggers a successful `cap-web` deployment of that exact SHA.
 2. Add the R2 bucket-scoped access key and secret to Railway. Verify a recording stores in R2 and plays back.
 3. Enable Cloudflare Email Sending for `o37group.com`. Add `CLOUDFLARE_EMAIL_API_TOKEN`. Verify a login link and an organization invitation.
 4. Add a scoped Cloudflare AI token as `AI_API_KEY`. Verify one AI request. Add `ASSEMBLY_API_KEY` if transcription is required.
