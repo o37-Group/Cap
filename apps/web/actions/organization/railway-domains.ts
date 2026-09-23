@@ -4,6 +4,7 @@ type RailwayDnsRecord = {
 	recordType: string;
 	requiredValue: string;
 	currentValue: string | null;
+	status: string;
 };
 
 type RailwayDomain = {
@@ -53,7 +54,7 @@ async function railwayGraphql<T>(query: string, variables: object): Promise<T> {
 
 const domainFields = `id domain status {
 	verified certificateStatus verificationDnsHost verificationToken
-	dnsRecords { fqdn zone recordType requiredValue currentValue }
+	dnsRecords { fqdn zone recordType requiredValue currentValue status }
 }`;
 
 export async function getRailwayDomain(domain: string) {
@@ -142,7 +143,12 @@ export async function checkRailwayDomainStatus(domain: string) {
 			verified,
 			verification: txtRecords,
 			recommendedCNAME: cname ? [{ rank: 1, value: cname.requiredValue }] : [],
-			cnames: cname?.currentValue ? [cname.currentValue] : [],
+			cnames:
+				cname?.status === "DNS_RECORD_STATUS_PROPAGATED"
+					? [cname.requiredValue]
+					: cname?.currentValue
+						? [cname.currentValue]
+						: [],
 			requiredAValue: aRecord?.requiredValue,
 			currentAValues: aRecord?.currentValue ? [aRecord.currentValue] : [],
 		},

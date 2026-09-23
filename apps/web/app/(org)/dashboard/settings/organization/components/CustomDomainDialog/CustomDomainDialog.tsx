@@ -267,7 +267,8 @@ const CustomDomainDialog = ({
 		(showToasts = true) => {
 			if (
 				!activeOrganization?.organization.id ||
-				!activeOrganization?.organization.customDomain
+				!activeOrganization?.organization.customDomain ||
+				checkDomainMutationRef.current?.isPending
 			)
 				return;
 

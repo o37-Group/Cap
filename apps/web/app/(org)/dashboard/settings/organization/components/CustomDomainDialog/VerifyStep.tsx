@@ -90,12 +90,9 @@ const VerifyStep = ({
 	const aRecordConfigured =
 		recommendedAValues.length > 0 &&
 		recommendedAValues.some((ip) => currentAValues.includes(ip));
-	const cnameConfigured =
-		recommendedCnames.length > 0 &&
-		recommendedCnames.some((rec) => currentCnames.includes(rec.value));
 	const showARecord =
 		recommendedAValues.length > 0 && !aRecordConfigured && !isSubdomain(domain);
-	const showCNAMERecord = hasRecommendedCNAME && !cnameConfigured;
+	const showCNAMERecord = hasRecommendedCNAME;
 	const showTXTRecord = hasTXTVerification && !isVerified;
 
 	const handleCopy = async (text: string, fieldId: string) => {
@@ -328,7 +325,8 @@ const VerifyStep = ({
 										CNAME Record Configuration
 									</p>
 									<p className="mt-1 text-sm text-gray-10">
-										Add this CNAME record to your domain:
+										Keep this CNAME record in place while Railway validates your
+										domain:
 									</p>
 								</div>
 								<div className="px-4 py-3">
