@@ -15,7 +15,7 @@ No Railway object storage bucket was created. Recordings must use the private Cl
 | Railway workspace | `e76 Systems` | Existing workspace used for this project. |
 | Railway project | `o37 Group Cap` / `2c7e9d6b-a684-4df3-90dd-926063b7c838` | Existing empty project reused for Cap. |
 | Railway production environment | `e74138eb-6826-4f01-a1f8-cde26c11c9fc` | Active. |
-| Railway web service | `cap-web` / `9974e6c9-5d20-4d3f-96ec-0341f89b3ea4` | GitHub source `o37-Group/Cap@main`; deployment `43ac608a-8763-4d3e-b946-c20f907b53d0` of commit `4e2866c6550f579966b0f4375510e42cd4b94de9` reported `SUCCESS`. |
+| Railway web service | `cap-web` / `9974e6c9-5d20-4d3f-96ec-0341f89b3ea4` | GitHub source `o37-Group/Cap@main`; push-triggered deployment `6b3a78a0-f5cf-4900-9ab5-2b4914b3ade1` of commit `eebd8ec72b3560c2f9da21625616a81d6866b0ee` reported `SUCCESS`. |
 | Railway media service | `media-server` / `772c4f7e-839c-4900-b1e1-92427c9230e5` | `ghcr.io/capsoftware/cap-media-server:latest`; deployment reported `SUCCESS`. |
 | Railway MySQL service | `mysql` / `c16557b8-e4b1-4db2-b478-b816005925d7` | `mysql:8.0`; deployment reported `SUCCESS`. |
 | Railway MySQL volume | `cap-mysql-data` / `59a4024f-f005-408e-a378-680f40290368` | Mounted at `/var/lib/mysql` in `sfo`. |
@@ -61,7 +61,7 @@ AI_STREAM_MODEL=openai/gpt-4.1-mini
 
 The media service also has `PORT=3456`. The web service uses the fork's Dockerfile. The owner granted the Railway GitHub App access to `o37-Group/Cap`. Railway now connects `cap-web` to `main`. The initial repository deployment built the exact commit shown in the resource table and passed its health check. Earlier web deployments used `railway up` from a local checkout.
 
-The web service keeps the repository root as its build context because the Dockerfile copies the monorepo. Its Dockerfile path is `apps/web/Dockerfile`, and its health check is `/api/health`. A pushed change to `main` should now create a new Railway deployment. Verify this with the next documentation commit by matching its SHA to a successful Railway deployment.
+The web service keeps the repository root as its build context because the Dockerfile copies the monorepo. Its Dockerfile path is `apps/web/Dockerfile`, and its health check is `/api/health`. Automatic deployment was verified: pushing commit `eebd8ec72b3560c2f9da21625616a81d6866b0ee` to `main` created deployment `6b3a78a0-f5cf-4900-9ab5-2b4914b3ade1` without a manual Railway command. Railway reported `SUCCESS`, and `https://cap.o37group.com/api/health` returned 200 with a valid public TLS connection afterward.
 
 The media service currently runs the upstream `ghcr.io/capsoftware/cap-media-server:latest` image. Changes to `apps/media-server` in this fork will not update that service. If forked media code must auto-deploy too, connect the same repository and `main` branch to the existing `media-server` service, use the repository root as build context, set Dockerfile path `apps/media-server/Dockerfile`, and verify one build and deployment. Keep the existing private networking and webhook secret. MySQL remains an image service and does not deploy from this repository.
 
@@ -107,7 +107,7 @@ The owner reported connecting the domain after initial setup. Public HTTPS now r
 
 ## Acceptance checklist
 
-1. Verify a commit pushed to `main` triggers a successful `cap-web` deployment of that exact SHA.
+1. Completed: A commit pushed to `main` triggered a successful `cap-web` deployment of that exact SHA.
 2. Add the R2 bucket-scoped access key and secret to Railway. Verify a recording stores in R2 and plays back.
 3. Enable Cloudflare Email Sending for `o37group.com`. Add `CLOUDFLARE_EMAIL_API_TOKEN`. Verify a login link and an organization invitation.
 4. Add a scoped Cloudflare AI token as `AI_API_KEY`. Verify one AI request. Add `ASSEMBLY_API_KEY` if transcription is required.
