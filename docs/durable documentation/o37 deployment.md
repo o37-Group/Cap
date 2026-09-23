@@ -115,6 +115,8 @@ The owner identified `clips.o37group.com` as the affected organization domain on
 
 The fork previously hid the CNAME instructions whenever one poll returned the expected value, then showed them again if another poll omitted it. Commit `9323bd3cb3ec8f0b4052628ede28d395e52b7a5e` keeps the required CNAME visible through validation, uses Railway's propagated record status, and avoids overlapping verification polls. This UI fix does not substitute for the missing ownership TXT record.
 
+The TXT instruction had a separate display error. It shortened `_railway-verify.clips.o37group.com` against the organization hostname `clips.o37group.com`, so it showed `_railway-verify` as the DNS Name. Cloudflare's `o37group.com` zone needs `_railway-verify.clips`. Commit `89c42211c8a9afbf22f255e71bc43eceba2dd733` uses Railway's DNS zone for the relative name and also shows the full hostname. It applies the same zone-relative naming to CNAME instructions. The old UI could lead an owner to publish the correct TXT value at the wrong hostname; check public DNS before assuming the provider is at fault.
+
 Railway's custom domain requires this Cloudflare DNS record:
 
 ```text
