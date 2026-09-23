@@ -4,7 +4,7 @@
 
 This fork is [o37-Group/Cap](https://github.com/o37-Group/Cap). Its upstream is [CapSoftware/Cap](https://github.com/CapSoftware/Cap). The deployment target is `https://cap.o37group.com`.
 
-The Railway web, MySQL, and media services report successful deployments. The web container started, applied its database migrations, and passed Railway's health check on 2026-09-22 at 23:14 UTC. The Cloudflare R2 bucket and Railway custom domain object exist. On 2026-09-23, public HTTPS requests returned `307` from `/` to `/login`, `200` from `/login`, and `200` from `/api/health` with valid TLS. Railway still displayed a DNS update warning and certificate ownership validation, so its domain status needs another check. Authentication email, video storage, and AI requests cannot work until the missing provider credentials and entitlements listed below are supplied. A public health response is not end-to-end application acceptance.
+The Railway web, MySQL, and media services report successful deployments. The web container started, applied its database migrations, and passed Railway's health check on 2026-09-22 at 23:14 UTC. The Cloudflare R2 bucket and Railway custom domain object exist. On 2026-09-23, public HTTPS requests returned `307` from `/` to `/login`, `200` from `/login`, and `200` from `/api/health` with valid TLS. Railway still displayed a DNS update warning and certificate ownership validation, so its domain status needs another check. Cloudflare Email Sending and Workers AI now have a deployed Worker adapter and Railway credentials. A login email was accepted by Cap, and an AI request returned content through the adapter. Inbox delivery, an authenticated in-app AI request, and video storage remain unverified. A public health response is not end-to-end application acceptance.
 
 No Railway object storage bucket was created. Recordings must use the private Cloudflare R2 bucket after its S3 credentials are configured.
 
@@ -15,7 +15,7 @@ No Railway object storage bucket was created. Recordings must use the private Cl
 | Railway workspace | `e76 Systems` | Existing workspace used for this project. |
 | Railway project | `o37 Group Cap` / `2c7e9d6b-a684-4df3-90dd-926063b7c838` | Existing empty project reused for Cap. |
 | Railway production environment | `e74138eb-6826-4f01-a1f8-cde26c11c9fc` | Active. |
-| Railway web service | `cap-web` / `9974e6c9-5d20-4d3f-96ec-0341f89b3ea4` | GitHub source `o37-Group/Cap@main`; push-triggered deployment `6b3a78a0-f5cf-4900-9ab5-2b4914b3ade1` of commit `eebd8ec72b3560c2f9da21625616a81d6866b0ee` reported `SUCCESS`. |
+| Railway web service | `cap-web` / `9974e6c9-5d20-4d3f-96ec-0341f89b3ea4` | GitHub source `o37-Group/Cap@main`; deployment `ae56f675-e6ef-45d8-93e4-c3a6cddc30da` of adapter commit `7060d1822747f2f6a22f3566eecce04083c320cf` reported `SUCCESS` with the new variables. |
 | Railway media service | `media-server` / `772c4f7e-839c-4900-b1e1-92427c9230e5` | `ghcr.io/capsoftware/cap-media-server:latest`; deployment reported `SUCCESS`. |
 | Railway MySQL service | `mysql` / `c16557b8-e4b1-4db2-b478-b816005925d7` | `mysql:8.0`; deployment reported `SUCCESS`. |
 | Railway MySQL volume | `cap-mysql-data` / `59a4024f-f005-408e-a378-680f40290368` | Mounted at `/var/lib/mysql` in `sfo`. |
@@ -23,10 +23,13 @@ No Railway object storage bucket was created. Recordings must use the private Cl
 | Cloudflare account | `d28a57487b4c83d6278e98ec21e84ca8` | Owns the domain and R2 bucket. |
 | Cloudflare zone | `o37group.com` / `b8db11a3c7b11fe66d403eccee5a249f` | Verified through Wrangler. |
 | Cloudflare R2 bucket | `o37-cap` | Created private. CORS policy applied from `infra/cloudflare/r2-cors.json`. |
+| Cloudflare adapter Worker | `o37-cap-adapter` / version `a6545918-ee0a-49e1-8f6a-1c3c6e4c2b82` at first deployment | Email Sending and AI bindings deployed. A later secret upload created a new version. Worker URL is `https://o37-cap-adapter.ancient-wildflower-6513.workers.dev`. |
+| Cloudflare sender domain | `mail.o37group.com` | Wrangler reports Email Sending `enabled=yes`; sender DNS records were returned. |
+| Cloudflare AI Gateway | `default` | Workers AI request with gateway ID `default` returned 200. The adapter uses this gateway. |
 
 ## Architecture
 
-The Railway web service runs the Cap Next.js app on port 3000. The Railway media service runs on port 3456 and uses Railway private networking. It probes recordings, generates thumbnails, converts and edits video, verifies recordings, and muxes segments with FFmpeg. It is compute for media processing; it is not the recording bucket. MySQL stores application records on its Railway volume. The web app is configured to use the private Cloudflare R2 bucket through its S3 API with presigned URLs. Cloudflare Email Sending is configured in code through its REST API. Cap's existing OpenAI-compatible provider is configured to call Cloudflare AI Gateway directly, so it needs no AI adapter. R2, email, and AI are not yet operational because their credentials are absent.
+The Railway web service runs the Cap Next.js app on port 3000. The Railway media service runs on port 3456 and uses Railway private networking. It probes recordings, generates thumbnails, converts and edits video, verifies recordings, and muxes segments with FFmpeg. It is compute for media processing; it is not the recording bucket. MySQL stores application records on its Railway volume. The web app is configured to use the private Cloudflare R2 bucket through its S3 API with presigned URLs. The `o37-cap-adapter` Worker has native Email Sending and AI bindings. It requires one dedicated bearer secret shared with `cap-web`. The Worker sends mail as `auth@mail.o37group.com` and calls Workers AI through the `default` AI Gateway. No Wrangler OAuth token is stored in Railway. R2 storage still lacks its S3 credentials.
 
 The web Docker image builds `NEXT_PUBLIC_WEB_URL=https://cap.o37group.com`. A build with a different public hostname needs this build argument changed and a new deployment.
 
@@ -50,16 +53,17 @@ S3_PATH_STYLE=true
 S3_UPLOAD_METHOD=put
 MEDIA_SERVER_URL=http://media-server.railway.internal:3456
 MEDIA_SERVER_WEBHOOK_URL=http://cap-web.railway.internal:3000
-RESEND_FROM_DOMAIN=o37group.com
+RESEND_FROM_DOMAIN=mail.o37group.com
 CLOUDFLARE_ACCOUNT_ID=d28a57487b4c83d6278e98ec21e84ca8
+CLOUDFLARE_EMAIL_API_URL=https://o37-cap-adapter.ancient-wildflower-6513.workers.dev/email/sending/send
 AI_PROVIDER=openai-compatible
-AI_BASE_URL=https://api.cloudflare.com/client/v4/accounts/d28a57487b4c83d6278e98ec21e84ca8/ai/v1
-AI_MODEL=openai/gpt-4.1-mini
-AI_CHAT_MODEL=openai/gpt-4.1-mini
-AI_STREAM_MODEL=openai/gpt-4.1-mini
+AI_BASE_URL=https://o37-cap-adapter.ancient-wildflower-6513.workers.dev/v1
+AI_MODEL=@cf/moonshotai/kimi-k2.6
+AI_CHAT_MODEL=@cf/moonshotai/kimi-k2.6
+AI_STREAM_MODEL=@cf/moonshotai/kimi-k2.6
 ```
 
-The media service also has `PORT=3456`. The web service uses the fork's Dockerfile. The owner granted the Railway GitHub App access to `o37-Group/Cap`. Railway now connects `cap-web` to `main`. The initial repository deployment built the exact commit shown in the resource table and passed its health check. Earlier web deployments used `railway up` from a local checkout.
+The web service also has `AI_API_KEY` and `CLOUDFLARE_EMAIL_API_TOKEN`. Both hold the same dedicated adapter bearer secret. The secret is also `CAP_ADAPTER_TOKEN` on the Worker. Do not print or commit it. The media service has `PORT=3456`. The web service uses the fork's Dockerfile. The owner granted the Railway GitHub App access to `o37-Group/Cap`. Railway now connects `cap-web` to `main`. The initial repository deployment built the exact commit shown in the resource table and passed its health check. Earlier web deployments used `railway up` from a local checkout.
 
 The web service keeps the repository root as its build context because the Dockerfile copies the monorepo. Its Dockerfile path is `apps/web/Dockerfile`, and its health check is `/api/health`. Automatic deployment was verified: pushing commit `eebd8ec72b3560c2f9da21625616a81d6866b0ee` to `main` created deployment `6b3a78a0-f5cf-4900-9ab5-2b4914b3ade1` without a manual Railway command. Railway reported `SUCCESS`, and `https://cap.o37group.com/api/health` returned 200 with a valid public TLS connection afterward.
 
@@ -81,15 +85,19 @@ After credentials exist, test a new recording upload and playback. Confirm in th
 
 ## Cloudflare Email Sending
 
-The fork's `sendEmail` function in `packages/database/emails/config.ts` uses Cloudflare Email Sending when `CLOUDFLARE_EMAIL_API_TOKEN` is set. It renders the React email to HTML and text, sends attachments as base64, and checks the REST response. It keeps the existing Resend branch for installations that do not set this token. The adapter calls Cloudflare directly from the Railway backend; no Worker is needed.
+The fork's `sendEmail` function in `packages/database/emails/config.ts` uses Cloudflare Email Sending when `CLOUDFLARE_EMAIL_API_TOKEN` is set. It renders the React email to HTML and text, sends attachments as base64, and checks the response. It keeps the existing Resend branch for installations that do not set this token. `CLOUDFLARE_EMAIL_API_URL` points this installation at the adapter Worker. The Worker uses the native Email Sending binding, restricted to `auth@mail.o37group.com`.
 
-Enable Email Sending for `o37group.com` in the Cloudflare account. Complete any sender-domain DNS and entitlement steps shown there. Create a scoped API token that can send email and set it as `CLOUDFLARE_EMAIL_API_TOKEN` on `cap-web`. The current Wrangler login received `Unauthorized [code:2036]` for both list and enable operations, so Email Sending was not enabled. The browser dashboard was not authenticated in Chrome. No message was sent. Test a login link and an organization invitation to an address you control before accepting users.
+The owner enabled Email Sending. Wrangler listed `mail.o37group.com` as enabled on 2026-09-23. It returned MX, SPF, DKIM, and DMARC sender records. The adapter accepted one test email to `tim@o37group.com` and returned `queued`; this is provider acceptance, not inbox delivery. A real `POST /api/auth/signin/email` on `cap.o37group.com` for the same address returned the NextAuth verify-request URL. Check that message in the inbox and test an organization invitation before accepting users. The previous apex sender domain `o37group.com` was not listed as enabled, so Cap now sends from the verified `mail.o37group.com` subdomain.
 
 Some upstream support and BAA flows still refer to Cap Software addresses such as `hello@cap.so` and `richie@send.cap.so`. The fork blocks outbound mail to `cap.so` recipients on self-hosted instances and rejects sender overrides outside the configured domain. Those flows will fail until they use o37-owned addresses. Review and replace them before using support, account deletion, or BAA features.
 
 ## Cloudflare AI
 
-The fork uses Cap's existing `AI_PROVIDER=openai-compatible` option. `AI_BASE_URL` points to Cloudflare AI Gateway's OpenAI-compatible endpoint and model variables use `openai/gpt-4.1-mini`. Set a scoped Cloudflare token for Workers AI inference as `AI_API_KEY` on `cap-web`. Confirm account access, credits, and model availability, then test a chat request. The token and test are still pending. No AI adapter was added.
+The fork uses Cap's existing `AI_PROVIDER=openai-compatible` option. `AI_BASE_URL` points to the adapter's OpenAI-compatible path. The Worker runs `@cf/moonshotai/kimi-k2.6` through the `default` AI Gateway with Cloudflare's AI binding. A direct adapter chat request returned 200 and nonempty content. A streaming request returned Server-Sent Events and `[DONE]`. The Worker rejected an unauthenticated request with 401. An authenticated in-app chat or recording summary still needs an organization and user session.
+
+The prior direct `openai/gpt-4.1-mini` Cloudflare endpoint returned HTTP 402, `Insufficient balance; add money to your gateway or use BYOK`. The Workers AI model returned HTTP 200 through the default gateway on the current account. Keep the model on Workers AI unless the account gains third-party model credits or a provider key. The current Wrangler OAuth token cannot create a scoped API token (`/user/tokens/permission_groups` returned HTTP 403); the adapter avoids storing that broad, expiring credential in Railway.
+
+The Worker source and binding configuration are in `infra/cloudflare/cap-adapter/`. Deploy changes with `wrangler deploy --config infra/cloudflare/cap-adapter/wrangler.jsonc`. Rotate the shared secret by setting `CAP_ADAPTER_TOKEN` on the Worker, then updating both `AI_API_KEY` and `CLOUDFLARE_EMAIL_API_TOKEN` on `cap-web`, and redeploying `cap-web`. Allow for a short cutover period in which requests may fail. Keep this Worker URL and secret private to the backend; do not call it from browser code.
 
 Cap uses `ASSEMBLY_API_KEY` separately for audio transcription. Cloudflare AI Gateway configuration does not satisfy that setting. Provide AssemblyAI credentials or implement and verify a separate transcription provider before expecting transcripts and related AI features to work.
 
@@ -109,8 +117,8 @@ The owner reported connecting the domain after initial setup. Public HTTPS now r
 
 1. Completed: A commit pushed to `main` triggered a successful `cap-web` deployment of that exact SHA.
 2. Add the R2 bucket-scoped access key and secret to Railway. Verify a recording stores in R2 and plays back.
-3. Enable Cloudflare Email Sending for `o37group.com`. Add `CLOUDFLARE_EMAIL_API_TOKEN`. Verify a login link and an organization invitation.
-4. Add a scoped Cloudflare AI token as `AI_API_KEY`. Verify one AI request. Add `ASSEMBLY_API_KEY` if transcription is required.
+3. Completed: Enable Cloudflare Email Sending for `mail.o37group.com`, configure the adapter secret, and verify provider acceptance and the Cap login email path. Check inbox delivery and test an organization invitation.
+4. Completed: Configure the AI binding and `default` gateway. An adapter AI request and stream returned 200. Test an authenticated in-app AI feature. Add `ASSEMBLY_API_KEY` if transcription is required.
 5. Recheck Railway domain and certificate status. Public HTTPS and the login page already respond successfully.
 6. Create an organization. Record a video, upload it, play it, share it privately, and delete it. Check the media server and web logs for errors.
 7. Review upstream support, BAA, billing, and analytics integrations before broad use. No claim is made that these are configured for o37.
@@ -120,4 +128,6 @@ The owner reported connecting the domain after initial setup. Public HTTPS now r
 - [Cap self-hosting guide](../../apps/web/content/docs/self-hosting.mdx)
 - [Cloudflare R2 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)
 - [Cloudflare Email Sending REST API](https://developers.cloudflare.com/email-service/api/send-emails/rest-api/)
+- [Cloudflare Email Sending Workers API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/)
 - [Cloudflare AI Gateway REST API](https://developers.cloudflare.com/ai-gateway/usage/rest-api/)
+- [Cloudflare AI Gateway Workers binding](https://developers.cloudflare.com/ai-gateway/usage/worker-binding-methods/)
