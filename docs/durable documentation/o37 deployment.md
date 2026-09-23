@@ -79,7 +79,9 @@ The application database is MySQL 8, not SQLite. Cap uses the MySQL Drizzle sche
 
 The R2 bucket is `o37-cap`. R2's S3 endpoint is the value of `S3_PUBLIC_ENDPOINT` above. Cloudflare R2 uses region `auto` and path-style addressing. The bucket CORS policy allows `GET`, `HEAD`, and `PUT` from `https://cap.o37group.com`. The fork sets `S3_UPLOAD_METHOD=put` because R2 does not support presigned POST form uploads. Browser clients using the existing PUT upload path work with this change; older desktop clients that require POST need an end-to-end upload test.
 
-Create a bucket-scoped R2 API token with object read and write permission for `o37-cap`. Enter its Access Key ID as `CAP_AWS_ACCESS_KEY` and Secret Access Key as `CAP_AWS_SECRET_KEY` on `cap-web` in Railway production. Use Railway secret variables. Do not place credentials in Git, a shell history, or this document. The current Wrangler login could create the bucket but could not create this R2 token; its token-permission API returned HTTP 403. Keep the bucket private. Do not enable `r2.dev` or a public R2 custom domain.
+Create a bucket-scoped R2 API token with object read and write permission for `o37-cap`. In the Cloudflare dashboard, open **R2 Object Storage → Overview → Manage API Tokens → Create API token**. Scope it to `o37-cap`. Enter its Access Key ID as `CAP_AWS_ACCESS_KEY` and Secret Access Key as `CAP_AWS_SECRET_KEY` on `cap-web` in Railway production. Use Railway secret variables. Do not place credentials in Git, a shell history, or this document. The current Wrangler login could create the bucket but could not create this R2 token; its token-permission API returned HTTP 403. Keep the bucket private. Do not enable `r2.dev` or a public R2 custom domain.
+
+The media server does not need these keys. `cap-web` signs R2 requests and gives the media server signed URLs. The organization icon upload also runs through `cap-web`. On 2026-09-23, its server log recorded `CredentialsProviderError` during an icon upload while these two variables were absent. Add them to `cap-web`, allow its redeployment to finish, then upload the icon again and reload the settings page. The failed upload did not save an icon.
 
 After credentials exist, test a new recording upload and playback. Confirm in the Cloudflare R2 dashboard that the object lands in `o37-cap`. Confirm Railway has no object storage bucket. Also test deletion and a private share link.
 
@@ -102,6 +104,10 @@ The Worker source and binding configuration are in `infra/cloudflare/cap-adapter
 Cap uses `ASSEMBLY_API_KEY` separately for audio transcription. Cloudflare AI Gateway configuration does not satisfy that setting. Provide AssemblyAI credentials or implement and verify a separate transcription provider before expecting transcripts and related AI features to work.
 
 ## Domain and TLS
+
+The fork uses Railway's custom-domain API when it runs with `RAILWAY_PROJECT_ID`. `cap-web` needs a Railway project token in the secret variable `CAP_RAILWAY_PROJECT_TOKEN`. Create a token for project `2c7e9d6b-a684-4df3-90dd-926063b7c838` and production environment `e74138eb-6826-4f01-a1f8-cde26c11c9fc` in Railway project settings. The Railway CLI account returned `Not Authorized` for `projectTokenCreate` on 2026-09-23, so this token is not configured yet. Do not use the R2 token for this setting. After adding the token, redeploy `cap-web` and try a new organization domain. The dialog should show Railway's DNS records. The token must remain server-side and must not be put in Git.
+
+The domain is not usable until Railway reports verification and a valid TLS certificate. The application then marks `domainVerified` in MySQL and routes that hostname through the web service. Railway may require both a routing CNAME and an ownership TXT record. Add the exact records returned by the dialog at the domain's DNS provider. Existing organizations with a custom domain should use **Check verification** after deploying the change. No organization domain was registered or tested during this repair because the attempted hostname and project token were unavailable.
 
 Railway's custom domain requires this Cloudflare DNS record:
 
