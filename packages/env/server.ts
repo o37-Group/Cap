@@ -30,6 +30,7 @@ function createServerEnv() {
 			RESEND_API_KEY: z.string().optional(),
 			RESEND_FROM_DOMAIN: z.string().optional(),
 			CLOUDFLARE_EMAIL_API_TOKEN: z.string().optional(),
+			CLOUDFLARE_EMAIL_API_URL: z.string().url().optional(),
 			CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
 
 			/// S3 configuration

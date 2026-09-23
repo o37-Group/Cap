@@ -80,7 +80,8 @@ export const sendEmail = async ({
 			throw new Error("Cloudflare email sender must use the configured domain");
 		}
 		const response = await fetch(
-			`https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/email/sending/send`,
+			env.CLOUDFLARE_EMAIL_API_URL ??
+				`https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/email/sending/send`,
 			{
 				method: "POST",
 				headers: {

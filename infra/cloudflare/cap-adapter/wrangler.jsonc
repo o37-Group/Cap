@@ -1,0 +1,13 @@
+{
+	"name": "o37-cap-adapter",
+	"main": "index.js",
+	"compatibility_date": "2026-09-23",
+	"account_id": "d28a57487b4c83d6278e98ec21e84ca8",
+	"ai": { "binding": "AI" },
+	"send_email": [
+		{
+			"name": "EMAIL",
+			"allowed_sender_addresses": ["auth@mail.o37group.com"]
+		}
+	]
+}
