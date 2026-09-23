@@ -14,7 +14,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { checkOrganizationDomain } from "@/actions/organization/check-domain";
-import { removeOrganizationDomain } from "@/actions/organization/remove-domain";
 import { updateDomain } from "@/actions/organization/update-domain";
 import type { ConfettiRef } from "@/app/(org)/dashboard/_components/Confetti";
 import { Confetti } from "@/app/(org)/dashboard/_components/Confetti";
@@ -152,9 +151,6 @@ const CustomDomainDialog = ({
 			domain: string;
 			orgId: string;
 		}) => {
-			if (activeOrganization?.organization.customDomain) {
-				await removeOrganizationDomain(Organisation.OrganisationId.make(orgId));
-			}
 			return await updateDomain(
 				domain,
 				Organisation.OrganisationId.make(orgId),
@@ -286,10 +282,6 @@ const CustomDomainDialog = ({
 		],
 	);
 
-	if (!currentStep) {
-		return null;
-	}
-
 	const handleDomainSubmit = async () => {
 		if (!domain.trim()) {
 			dispatch({
@@ -353,6 +345,10 @@ const CustomDomainDialog = ({
 			handleNext();
 		}
 	}, [isVerified, stepState.currentIndex, handleClose, handleNext]);
+
+	if (!currentStep) {
+		return null;
+	}
 
 	return (
 		<>

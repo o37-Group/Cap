@@ -8,7 +8,7 @@ import type { Organisation } from "@cap/web-domain";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireOrganizationSettingsManager } from "./authorization";
-import { addDomain, checkDomainStatus } from "./domain-utils";
+import { addDomain, checkDomainStatus, removeDomain } from "./domain-utils";
 
 export async function updateDomain(
 	domain: string,
@@ -68,6 +68,14 @@ export async function updateDomain(
 					domainVerified: new Date(),
 				})
 				.where(eq(organizations.id, organizationId));
+		}
+
+		if (organization.customDomain && organization.customDomain !== domain) {
+			try {
+				await removeDomain(organization.customDomain);
+			} catch (error) {
+				console.error("Failed to remove previous organization domain", error);
+			}
 		}
 
 		revalidatePath("/dashboard/settings/organization");

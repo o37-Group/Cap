@@ -1,3 +1,12 @@
+import {
+	addRailwayDomain,
+	checkRailwayDomainStatus,
+	getRailwayDomain,
+	removeRailwayDomain,
+} from "./railway-domains";
+
+const railwayDomainsEnabled = () => Boolean(process.env.RAILWAY_PROJECT_ID);
+
 export const getConfigResponse = async (domain: string) => {
 	const response = await fetch(
 		`https://api.vercel.com/v6/domains/${domain.toLowerCase()}/config?teamId=${
@@ -16,6 +25,10 @@ export const getConfigResponse = async (domain: string) => {
 };
 
 export const getDomainResponse = async (domain: string) => {
+	if (railwayDomainsEnabled()) {
+		const result = await getRailwayDomain(domain);
+		return result ?? { error: { code: "not_found" } };
+	}
 	const response = await fetch(
 		`https://api.vercel.com/v9/projects/${
 			process.env.VERCEL_PROJECT_ID
@@ -51,6 +64,9 @@ export const verifyDomain = async (domain: string) => {
 };
 
 export const addDomain = async (domain: string) => {
+	if (railwayDomainsEnabled()) {
+		return addRailwayDomain(domain);
+	}
 	const response = await fetch(
 		`https://api.vercel.com/v9/projects/${process.env.VERCEL_PROJECT_ID}/domains?teamId=${process.env.VERCEL_TEAM_ID}`,
 		{
@@ -65,6 +81,25 @@ export const addDomain = async (domain: string) => {
 	).then((res) => res.json());
 
 	return response;
+};
+
+export const removeDomain = async (domain: string) => {
+	if (railwayDomainsEnabled()) {
+		await removeRailwayDomain(domain);
+		return;
+	}
+	const response = await fetch(
+		`https://api.vercel.com/v9/projects/${process.env.VERCEL_PROJECT_ID}/domains/${domain.toLowerCase()}?teamId=${process.env.VERCEL_TEAM_ID}`,
+		{
+			method: "DELETE",
+			headers: {
+				Authorization: `Bearer ${process.env.VERCEL_AUTH_TOKEN}`,
+			},
+		},
+	);
+	if (!response.ok && response.status !== 404) {
+		throw new Error(`Domain removal returned HTTP ${response.status}`);
+	}
 };
 
 export const getRequiredConfig = async (domain: string) => {
@@ -144,6 +179,9 @@ export const getRequiredConfig = async (domain: string) => {
 };
 
 export const checkDomainStatus = async (domain: string) => {
+	if (railwayDomainsEnabled()) {
+		return checkRailwayDomainStatus(domain);
+	}
 	try {
 		const [domainJson, configJson, requiredConfigJson] = await Promise.all([
 			getDomainResponse(domain),

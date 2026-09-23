@@ -18,6 +18,7 @@ import {
 	addDomain,
 	checkDomainStatus,
 	getDomainResponse,
+	removeDomain,
 } from "@/actions/organization/domain-utils";
 import { isAiGenerationEnabledForUser } from "@/lib/ai-generation-entitlement";
 import { enqueueVideoStorageNameSync } from "@/lib/sync-video-storage-names";
@@ -381,21 +382,9 @@ async function addOrganizationDomain(domain: string) {
 	return checkDomainStatus(domain);
 }
 
-async function removeOrganizationDomainFromVercel(domain: string) {
+async function removeOrganizationDomainFromProvider(domain: string) {
 	"use step";
-
-	const response = await fetch(
-		`https://api.vercel.com/v9/projects/${process.env.VERCEL_PROJECT_ID}/domains/${domain.toLowerCase()}?teamId=${process.env.VERCEL_TEAM_ID}`,
-		{
-			method: "DELETE",
-			headers: {
-				Authorization: `Bearer ${process.env.VERCEL_AUTH_TOKEN}`,
-			},
-		},
-	);
-	if (!response.ok && response.status !== 404) {
-		throw new Error(`Domain removal returned HTTP ${response.status}`);
-	}
+	await removeDomain(domain);
 }
 
 async function verifyOrganizationDomainStatus(domain: string) {
@@ -492,7 +481,7 @@ async function updateOrganizationDomain(
 		return;
 	}
 	if (kind === "remove_organization_domain") {
-		await removeOrganizationDomainFromVercel(domain);
+		await removeOrganizationDomainFromProvider(domain);
 		await finishOrganizationDomain(
 			operationId,
 			{ ...payload, domain },
