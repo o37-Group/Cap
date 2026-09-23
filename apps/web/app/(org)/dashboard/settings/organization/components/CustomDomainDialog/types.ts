@@ -35,6 +35,7 @@ export type DomainVerification = {
 export type DomainConfig = {
 	name: string;
 	apexName: string;
+	dnsZone?: string;
 	verification: DomainVerification[];
 	verified: boolean;
 	misconfigured?: boolean;

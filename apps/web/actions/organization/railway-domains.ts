@@ -140,6 +140,7 @@ export async function checkRailwayDomainStatus(domain: string) {
 		config: {
 			name: domain,
 			apexName: domain,
+			dnsZone: result.status.dnsRecords[0]?.zone,
 			verified,
 			verification: txtRecords,
 			recommendedCNAME: cname ? [{ rank: 1, value: cname.requiredValue }] : [],

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { parse } from "tldts";
 import { useDashboardContext } from "@/app/(org)/dashboard/Contexts";
-import type { DomainConfig, DomainVerification } from "./types";
+import type { DomainConfig } from "./types";
 
 interface VerifyStepProps {
 	domain: string;
@@ -17,14 +17,20 @@ interface VerifyStepProps {
 
 const POLL_INTERVAL = 5000;
 
-const TXTDomainValueHandler = (record: DomainVerification, domain: string) => {
-	if (!record.domain) return "@";
-	if (record.domain === domain) return "@";
-	const suffix = `.${domain}`;
-	if (record.domain.endsWith(suffix)) {
-		return record.domain.replace(suffix, "") || "@";
-	}
-	return record.domain;
+const getDnsRecordName = (
+	hostname: string,
+	domain: string,
+	dnsZone?: string,
+) => {
+	const recordHostname = hostname.replace(/\.$/, "");
+	if (!recordHostname) return "@";
+	const zone = dnsZone ?? parse(domain).domain;
+	if (!zone) return recordHostname;
+	if (recordHostname === zone) return "@";
+	const suffix = `.${zone}`;
+	return recordHostname.endsWith(suffix)
+		? recordHostname.slice(0, -suffix.length)
+		: recordHostname;
 };
 
 const VerifyStep = ({
@@ -171,12 +177,19 @@ const VerifyStep = ({
 												</div>
 												<div className="grid grid-cols-[100px,1fr] items-center">
 													<dt className="text-sm font-medium text-gray-12">
-														Name
+														Name in DNS zone
 													</dt>
-													<dd className="text-sm text-gray-10">
+													<dd className="space-y-1 text-sm text-gray-10">
 														<code className="px-2 py-1 text-xs rounded bg-gray-4">
-															{TXTDomainValueHandler(record, domain)}
+															{getDnsRecordName(
+																record.domain,
+																domain,
+																domainConfig.dnsZone,
+															)}
 														</code>
+														<p className="text-xs break-all">
+															Full hostname: {record.domain}
+														</p>
 													</dd>
 												</div>
 												<div className="grid grid-cols-[100px,1fr] items-center">
@@ -381,9 +394,11 @@ const VerifyStep = ({
 											<dt className="text-sm font-medium text-gray-12">Name</dt>
 											<dd className="text-sm text-gray-10">
 												<code className="px-2 py-1 text-xs rounded bg-gray-4">
-													{domain.split(".").length > 2
-														? domain.split(".")[0]
-														: "@"}
+													{getDnsRecordName(
+														domain,
+														domain,
+														domainConfig.dnsZone,
+													)}
 												</code>
 											</dd>
 										</div>
