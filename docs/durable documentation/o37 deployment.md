@@ -4,7 +4,7 @@
 
 This fork is [o37-Group/Cap](https://github.com/o37-Group/Cap). Its upstream is [CapSoftware/Cap](https://github.com/CapSoftware/Cap). The deployment target is `https://cap.o37group.com`.
 
-The Railway web, MySQL, and media services report successful deployments. The web container started, applied its database migrations, and passed Railway's health check on 2026-09-22 at 23:14 UTC. The Cloudflare R2 bucket and Railway custom domain object exist. Public DNS and end-to-end application behavior are not verified. Authentication email, video storage, and AI requests cannot work until the missing provider credentials and entitlements listed below are supplied. Do not treat a successful container deployment as application acceptance.
+The Railway web, MySQL, and media services report successful deployments. The web container started, applied its database migrations, and passed Railway's health check on 2026-09-22 at 23:14 UTC. The Cloudflare R2 bucket and Railway custom domain object exist. On 2026-09-23, public HTTPS requests returned `307` from `/` to `/login`, `200` from `/login`, and `200` from `/api/health` with valid TLS. Railway still displayed a DNS update warning and certificate ownership validation, so its domain status needs another check. Authentication email, video storage, and AI requests cannot work until the missing provider credentials and entitlements listed below are supplied. A public health response is not end-to-end application acceptance.
 
 No Railway object storage bucket was created. Recordings must use the private Cloudflare R2 bucket after its S3 credentials are configured.
 
@@ -19,14 +19,14 @@ No Railway object storage bucket was created. Recordings must use the private Cl
 | Railway media service | `media-server` / `772c4f7e-839c-4900-b1e1-92427c9230e5` | `ghcr.io/capsoftware/cap-media-server:latest`; deployment reported `SUCCESS`. |
 | Railway MySQL service | `mysql` / `c16557b8-e4b1-4db2-b478-b816005925d7` | `mysql:8.0`; deployment reported `SUCCESS`. |
 | Railway MySQL volume | `cap-mysql-data` / `59a4024f-f005-408e-a378-680f40290368` | Mounted at `/var/lib/mysql` in `sfo`. |
-| Railway custom domain | `cap.o37group.com` / `d5fc9428-d7cf-49b5-961a-7393933ac4b2` | Ownership and certificate wait for DNS. |
+| Railway custom domain | `cap.o37group.com` / `d5fc9428-d7cf-49b5-961a-7393933ac4b2` | Public HTTPS responds with valid TLS; Railway still reports ownership validation. |
 | Cloudflare account | `d28a57487b4c83d6278e98ec21e84ca8` | Owns the domain and R2 bucket. |
 | Cloudflare zone | `o37group.com` / `b8db11a3c7b11fe66d403eccee5a249f` | Verified through Wrangler. |
 | Cloudflare R2 bucket | `o37-cap` | Created private. CORS policy applied from `infra/cloudflare/r2-cors.json`. |
 
 ## Architecture
 
-The Railway web service runs the Cap Next.js app on port 3000. The Railway media service runs on port 3456 and uses Railway private networking. MySQL stores application records on its Railway volume. The web app uses Cloudflare R2 for recordings through its S3 API; the bucket stays private and access uses presigned URLs. Cloudflare Email Sending handles application messages through its REST API. Cap's existing OpenAI-compatible provider calls Cloudflare AI Gateway directly, so it needs no AI adapter. Cloudflare DNS points the public hostname to Railway.
+The Railway web service runs the Cap Next.js app on port 3000. The Railway media service runs on port 3456 and uses Railway private networking. It probes recordings, generates thumbnails, converts and edits video, verifies recordings, and muxes segments with FFmpeg. It is compute for media processing; it is not the recording bucket. MySQL stores application records on its Railway volume. The web app is configured to use the private Cloudflare R2 bucket through its S3 API with presigned URLs. Cloudflare Email Sending is configured in code through its REST API. Cap's existing OpenAI-compatible provider is configured to call Cloudflare AI Gateway directly, so it needs no AI adapter. R2, email, and AI are not yet operational because their credentials are absent.
 
 The web Docker image builds `NEXT_PUBLIC_WEB_URL=https://cap.o37group.com`. A build with a different public hostname needs this build argument changed and a new deployment.
 
@@ -59,7 +59,17 @@ AI_CHAT_MODEL=openai/gpt-4.1-mini
 AI_STREAM_MODEL=openai/gpt-4.1-mini
 ```
 
-The media service also has `PORT=3456`. The web service uses the fork's Dockerfile. Railway's GitHub integration could not access `o37-Group/Cap` during setup, so `railway up` from the checked-out fork was used. Authorize the Railway GitHub app for this repository and connect branch `main` to `cap-web` for continuous deployment. Verify the Dockerfile path and build context after connecting it. Until then, new commits require an explicit `railway up` from this repository.
+The media service also has `PORT=3456`. The web service uses the fork's Dockerfile. Railway's GitHub integration could not access `o37-Group/Cap` during setup or on the 2026-09-23 retry: connecting the source returned `User does not have access to the repo`. The current successful web image came from `railway up` in the checked-out fork. Pushes to GitHub do not deploy automatically yet.
+
+To enable automatic deployment, give the Railway GitHub App access to `o37-Group/Cap` in the GitHub organization installation settings. Confirm that a Railway project member has a connected GitHub account with contributor access. In the existing `cap-web` service, open Settings, connect `o37-Group/Cap` as its source, select `main`, and enable automatic deployments. Keep the repository root as the build context because the Dockerfile copies the monorepo. Keep the Dockerfile path `apps/web/Dockerfile` and health check `/api/health`. Wait for Railway's GitHub cache to refresh if the repository does not appear. Verify by pushing a small commit and checking that Railway builds that exact commit SHA and reports a successful deployment. Do not create a replacement web service; the current one holds the domain and variables.
+
+The media service currently runs the upstream `ghcr.io/capsoftware/cap-media-server:latest` image. Changes to `apps/media-server` in this fork will not update that service. If forked media code must auto-deploy too, connect the same repository and `main` branch to the existing `media-server` service, use the repository root as build context, set Dockerfile path `apps/media-server/Dockerfile`, and verify one build and deployment. Keep the existing private networking and webhook secret. MySQL remains an image service and does not deploy from this repository.
+
+Until GitHub source access is fixed, new web commits require an explicit `railway up` from this repository.
+
+## Database choice
+
+The application database is MySQL 8, not SQLite. Cap uses the MySQL Drizzle schema and `mysql2` driver, and its MySQL migrations ran against the Railway service. Cloudflare D1 uses SQLite semantics, but it is not a drop-in replacement for Cap's MySQL connection, schema, SQL, or migrations. Using D1 would require a deliberate database port and migration test. Keep MySQL for this deployment. R2 holds large recording objects; MySQL holds application records.
 
 ## Cloudflare storage
 
@@ -93,15 +103,15 @@ Name: cap
 Target: 4hkocyaw.up.railway.app
 ```
 
-Create this record in the `o37group.com` zone. Railway currently reports `DNS_RECORD_STATUS_REQUIRES_UPDATE` and `CERTIFICATE_STATUS_TYPE_VALIDATING_OWNERSHIP`. The current Wrangler OAuth login received HTTP 403 when reading or editing zone DNS records, and Chrome was not logged in to the Cloudflare dashboard. The record therefore was not created or verified. After creating it, wait for Railway to report active DNS and certificate, then check `https://cap.o37group.com` in Chrome. Use Cloudflare DNS mode compatible with Railway's custom-domain validation; start with DNS-only if proxying blocks validation.
+The owner reported connecting the domain after initial setup. Public HTTPS now reaches the login page and health endpoint with valid TLS. Railway reports `verified=true`, but its DNS record still shows `DNS_RECORD_STATUS_REQUIRES_UPDATE` and its certificate shows `CERTIFICATE_STATUS_TYPE_VALIDATING_OWNERSHIP`. This can reflect Cloudflare proxying or status propagation; do not replace a working record based on that status alone. Recheck Railway domain status and public HTTPS after propagation. The current Wrangler OAuth login received HTTP 403 when reading zone DNS records, so the DNS record's Cloudflare dashboard settings were not inspected here.
 
 ## Acceptance checklist
 
-1. Authorize Railway's GitHub app for `o37-Group/Cap` and connect `main` to `cap-web`.
+1. Authorize Railway's GitHub app for `o37-Group/Cap`, connect `main` to `cap-web`, and verify one commit-triggered deployment.
 2. Add the R2 bucket-scoped access key and secret to Railway. Verify a recording stores in R2 and plays back.
 3. Enable Cloudflare Email Sending for `o37group.com`. Add `CLOUDFLARE_EMAIL_API_TOKEN`. Verify a login link and an organization invitation.
 4. Add a scoped Cloudflare AI token as `AI_API_KEY`. Verify one AI request. Add `ASSEMBLY_API_KEY` if transcription is required.
-5. Create the Cloudflare CNAME, wait for Railway TLS, and verify the public hostname.
+5. Recheck Railway domain and certificate status. Public HTTPS and the login page already respond successfully.
 6. Create an organization. Record a video, upload it, play it, share it privately, and delete it. Check the media server and web logs for errors.
 7. Review upstream support, BAA, billing, and analytics integrations before broad use. No claim is made that these are configured for o37.
 
