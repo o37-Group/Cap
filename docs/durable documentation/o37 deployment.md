@@ -4,9 +4,9 @@
 
 This fork is [o37-Group/Cap](https://github.com/o37-Group/Cap). Its upstream is [CapSoftware/Cap](https://github.com/CapSoftware/Cap). The deployment target is `https://cap.o37group.com`.
 
-The Railway web, MySQL, and media services report successful deployments. The web container started, applied its database migrations, and passed Railway's health check on 2026-09-22 at 23:14 UTC. The Cloudflare R2 bucket and Railway custom domain object exist. On 2026-09-23, public HTTPS requests returned `307` from `/` to `/login`, `200` from `/login`, and `200` from `/api/health` with valid TLS. Railway still displayed a DNS update warning and certificate ownership validation, so its domain status needs another check. Cloudflare Email Sending and Workers AI now have a deployed Worker adapter and Railway credentials. A login email was accepted by Cap, and an AI request returned content through the adapter. Inbox delivery, an authenticated in-app AI request, and video storage remain unverified. A public health response is not end-to-end application acceptance.
+The Railway web, MySQL, and media services report successful deployments. The web container started, applied its database migrations, and passed Railway's health check on 2026-09-22 at 23:14 UTC. The Cloudflare R2 bucket and Railway custom domain object exist. On 2026-09-23, public HTTPS requests returned `307` from `/` to `/login`, `200` from `/login`, and `200` from `/api/health` with valid TLS. Railway still displayed a DNS update warning and certificate ownership validation, so its domain status needs another check. Cloudflare Email Sending and Workers AI now have a deployed Worker adapter and Railway credentials. A login email was accepted by Cap, and an AI request returned content through the adapter. On 2026-09-23, `cap-web` wrote, read, and deleted a temporary object in R2. Inbox delivery, an authenticated in-app AI request, an organization icon upload, and video recording storage remain unverified. A public health response is not end-to-end application acceptance.
 
-No Railway object storage bucket was created. On 2026-09-23, Railway showed both R2 key variables populated on `cap-web`. An actual R2 upload and playback still need verification.
+No Railway object storage bucket was created. On 2026-09-23, Railway showed both R2 key variables populated on `cap-web`. A temporary R2 object passed write, read, and delete checks from the running service. An application icon upload and recording playback still need verification.
 
 ## Resource inventory
 
@@ -29,7 +29,7 @@ No Railway object storage bucket was created. On 2026-09-23, Railway showed both
 
 ## Architecture
 
-The Railway web service runs the Cap Next.js app on port 3000. The Railway media service runs on port 3456 and uses Railway private networking. It probes recordings, generates thumbnails, converts and edits video, verifies recordings, and muxes segments with FFmpeg. It is compute for media processing; it is not the recording bucket. MySQL stores application records on its Railway volume. The web app is configured to use the private Cloudflare R2 bucket through its S3 API with presigned URLs. The `o37-cap-adapter` Worker has native Email Sending and AI bindings. It requires one dedicated bearer secret shared with `cap-web`. The Worker sends mail as `auth@mail.o37group.com` and calls Workers AI through the `default` AI Gateway. No Wrangler OAuth token is stored in Railway. R2 credentials are now set on `cap-web`; object writes remain untested.
+The Railway web service runs the Cap Next.js app on port 3000. The Railway media service runs on port 3456 and uses Railway private networking. It probes recordings, generates thumbnails, converts and edits video, verifies recordings, and muxes segments with FFmpeg. It is compute for media processing; it is not the recording bucket. MySQL stores application records on its Railway volume. The web app is configured to use the private Cloudflare R2 bucket through its S3 API with presigned URLs. The `o37-cap-adapter` Worker has native Email Sending and AI bindings. It requires one dedicated bearer secret shared with `cap-web`. The Worker sends mail as `auth@mail.o37group.com` and calls Workers AI through the `default` AI Gateway. No Wrangler OAuth token is stored in Railway. R2 credentials are now set on `cap-web`; direct object writes passed a smoke check.
 
 The web Docker image builds `NEXT_PUBLIC_WEB_URL=https://cap.o37group.com`. A build with a different public hostname needs this build argument changed and a new deployment.
 
@@ -83,7 +83,7 @@ Create a bucket-scoped R2 API token with object read and write permission for `o
 
 The media server does not need these keys. `cap-web` signs R2 requests and gives the media server signed URLs. The organization icon upload also runs through `cap-web`. On 2026-09-23, its server log recorded `CredentialsProviderError` during an icon upload while these two variables were absent. Add them to `cap-web`, allow its redeployment to finish, then upload the icon again and reload the settings page. The failed upload did not save an icon.
 
-The two R2 variables were present and nonempty on `cap-web` at the latest 2026-09-23 check. Test a new recording upload and playback. Confirm in the Cloudflare R2 dashboard that the object lands in `o37-cap`. Confirm Railway has no object storage bucket. Also test deletion and a private share link.
+The two R2 variables were present and nonempty on `cap-web` at the latest 2026-09-23 check. A direct S3 client check from the deployed service wrote, read, and deleted a temporary object in `o37-cap`. Retry the organization icon upload and reload its settings page. Test a new recording upload and playback. Confirm in the Cloudflare R2 dashboard that the recording lands in `o37-cap`. Confirm Railway has no object storage bucket. Also test deletion and a private share link.
 
 ## Cloudflare Email Sending
 
@@ -105,9 +105,9 @@ Cap uses `ASSEMBLY_API_KEY` separately for audio transcription. Cloudflare AI Ga
 
 ## Domain and TLS
 
-The fork uses Railway's custom-domain API when it runs with `RAILWAY_PROJECT_ID`. `cap-web` needs a Railway project token in the secret variable `CAP_RAILWAY_PROJECT_TOKEN`. Create a token for project `2c7e9d6b-a684-4df3-90dd-926063b7c838` and production environment `e74138eb-6826-4f01-a1f8-cde26c11c9fc` in Railway project settings. The Railway CLI account returned `Not Authorized` for `projectTokenCreate` on 2026-09-23, so this token is not configured yet. Do not use the R2 token for this setting. After adding the token, redeploy `cap-web` and try a new organization domain. The dialog should show Railway's DNS records. The token must remain server-side and must not be put in Git.
+The fork uses Railway's custom-domain API when it runs with `RAILWAY_PROJECT_ID`. `cap-web` needs a Railway project token in the secret variable `CAP_RAILWAY_PROJECT_TOKEN`. Create a token for project `2c7e9d6b-a684-4df3-90dd-926063b7c838` and production environment `e74138eb-6826-4f01-a1f8-cde26c11c9fc` in Railway project settings. The Railway CLI account returned `Not Authorized` for `projectTokenCreate` on 2026-09-23. The owner added the token in Railway, and the staged change was applied. Deployment `3b0eb3cf-6ffe-4d81-8204-bcbcec0a9496` passed its health check. A read-only `domains` query from the running `cap-web` service returned HTTP 200 using its project token. Do not use the R2 token for this setting. The dialog should show Railway's DNS records when an organization domain is added. The token must remain server-side and must not be put in Git.
 
-The domain is not usable until Railway reports verification and a valid TLS certificate. The application then marks `domainVerified` in MySQL and routes that hostname through the web service. Railway may require both a routing CNAME and an ownership TXT record. Add the exact records returned by the dialog at the domain's DNS provider. Existing organizations with a custom domain should use **Check verification** after deploying the change. No organization domain was registered or tested during this repair because the attempted hostname and project token were unavailable.
+The domain is not usable until Railway reports verification and a valid TLS certificate. The application then marks `domainVerified` in MySQL and routes that hostname through the web service. Railway may require both a routing CNAME and an ownership TXT record. Add the exact records returned by the dialog at the domain's DNS provider. Existing organizations with a custom domain should use **Check verification** after deploying the change. No organization domain was registered or tested during this repair because the attempted hostname was not provided. The provider token and read access are now verified.
 
 Railway's custom domain requires this Cloudflare DNS record:
 
@@ -122,7 +122,7 @@ The owner reported connecting the domain after initial setup. Public HTTPS now r
 ## Acceptance checklist
 
 1. Completed: A commit pushed to `main` triggered a successful `cap-web` deployment of that exact SHA.
-2. Completed: Add the R2 bucket-scoped access key and secret to `cap-web` in Railway. Pending: Verify an organization icon and recording store in R2, and verify recording playback.
+2. Completed: Add the R2 bucket-scoped access key and secret to `cap-web` in Railway, and verify a temporary object can be written, read, and deleted. Pending: Verify an organization icon and recording store in R2, and verify recording playback.
 3. Completed: Enable Cloudflare Email Sending for `mail.o37group.com`, configure the adapter secret, and verify provider acceptance and the Cap login email path. Check inbox delivery and test an organization invitation.
 4. Completed: Configure the AI binding and `default` gateway. An adapter AI request and stream returned 200. Test an authenticated in-app AI feature. Add `ASSEMBLY_API_KEY` if transcription is required.
 5. Recheck Railway domain and certificate status. Public HTTPS and the login page already respond successfully.
