@@ -161,8 +161,8 @@ export class S3Buckets extends Effect.Service<S3Buckets>()("S3Buckets", {
 				},
 				onSome: (customBucket) =>
 					Effect.gen(function* () {
-						const bucket = yield* Effect.promise(() =>
-							decrypt(customBucket.name),
+						const bucket = yield* Effect.promise(async () =>
+							(await decrypt(customBucket.name)).trim(),
 						);
 
 						const client = yield* Effect.promise(() =>

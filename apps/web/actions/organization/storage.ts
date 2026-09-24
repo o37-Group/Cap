@@ -136,7 +136,7 @@ const decryptS3Config = async (
 	endpoint: bucket.endpoint
 		? await decrypt(bucket.endpoint)
 		: "https://s3.amazonaws.com",
-	bucketName: await decrypt(bucket.bucketName),
+	bucketName: (await decrypt(bucket.bucketName)).trim(),
 	region: await decrypt(bucket.region),
 });
 
@@ -397,13 +397,15 @@ export async function saveOrganizationS3Config(input: S3ConfigInput) {
 	const { user } = await requireOrganizationStorageManagerPro(
 		input.organizationId,
 	);
+	const bucketName = input.bucketName.trim();
+	if (!bucketName) throw new Error("Enter a bucket name");
 	const credentials = await getS3InputCredentials(input);
 	const encryptedConfig = {
 		provider: input.provider,
 		accessKeyId: await encrypt(credentials.accessKeyId),
 		secretAccessKey: await encrypt(credentials.secretAccessKey),
 		endpoint: input.endpoint ? await encrypt(input.endpoint) : null,
-		bucketName: await encrypt(input.bucketName),
+		bucketName: await encrypt(bucketName),
 		region: await encrypt(input.region),
 		ownerId: user.id,
 		organizationId: input.organizationId,
@@ -439,7 +441,8 @@ export async function removeOrganizationS3Config(
 
 export async function testOrganizationS3Config(input: S3ConfigInput) {
 	await requireOrganizationStorageManagerPro(input.organizationId);
-	if (!input.bucketName.trim()) {
+	const bucketName = input.bucketName.trim();
+	if (!bucketName) {
 		return { success: false as const, error: "Enter a bucket name" };
 	}
 	if (input.provider === "cloudflare") {
@@ -516,7 +519,7 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 	try {
 		await s3Client.send(
 			new ListObjectsV2Command({
-				Bucket: input.bucketName,
+				Bucket: bucketName,
 				MaxKeys: 1,
 			}),
 			{
@@ -533,7 +536,7 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 			try {
 				await s3Client.send(
 					new HeadObjectCommand({
-						Bucket: input.bucketName,
+						Bucket: bucketName,
 						Key: `cap-connection-test/${nanoId()}`,
 					}),
 					{ abortSignal: controller.signal },
@@ -557,7 +560,7 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 		return {
 			success: false as const,
 			error:
-				getS3ConnectionErrorMessage(error, input.bucketName) +
+				getS3ConnectionErrorMessage(error, bucketName) +
 				(isR2AccessDenied
 					? ` Tested ${credentialSource} keys. Object read check: ${objectReadStatus ? `HTTP ${objectReadStatus}` : "unavailable"}.`
 					: ""),

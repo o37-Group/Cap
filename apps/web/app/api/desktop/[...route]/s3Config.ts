@@ -45,7 +45,7 @@ const decryptBucketConfig = async (
 	endpoint: bucket.endpoint
 		? await decrypt(bucket.endpoint)
 		: "https://s3.amazonaws.com",
-	bucketName: await decrypt(bucket.bucketName),
+	bucketName: (await decrypt(bucket.bucketName)).trim(),
 	region: await decrypt(bucket.region),
 });
 
@@ -66,7 +66,7 @@ app.post(
 			accessKeyId: z.string(),
 			secretAccessKey: z.string(),
 			endpoint: z.string(),
-			bucketName: z.string(),
+			bucketName: z.string().trim().min(1),
 			region: z.string(),
 		}),
 	),
@@ -219,7 +219,7 @@ app.post(
 			accessKeyId: z.string(),
 			secretAccessKey: z.string(),
 			endpoint: z.string(),
-			bucketName: z.string(),
+			bucketName: z.string().trim().min(1),
 			region: z.string(),
 		}),
 	),
