@@ -1,7 +1,7 @@
 "use server";
 
 import { createHmac } from "node:crypto";
-import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
 import { decrypt, encrypt } from "@cap/database/crypto";
@@ -489,9 +489,15 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 	});
 
 	try {
-		await s3Client.send(new HeadBucketCommand({ Bucket: input.bucketName }), {
-			abortSignal: controller.signal,
-		});
+		await s3Client.send(
+			new ListObjectsV2Command({
+				Bucket: input.bucketName,
+				MaxKeys: 1,
+			}),
+			{
+				abortSignal: controller.signal,
+			},
+		);
 		return { success: true as const };
 	} catch (error) {
 		console.error("[organization-storage] S3 connection test failed", {

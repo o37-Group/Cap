@@ -1,4 +1,4 @@
-import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { db } from "@cap/database";
 import { decrypt, encrypt } from "@cap/database/crypto";
 import { nanoId } from "@cap/database/helpers";
@@ -236,6 +236,7 @@ app.post(
 			const s3Client = new S3Client({
 				endpoint: data.endpoint,
 				region: data.region,
+				forcePathStyle: data.provider === "cloudflare",
 				credentials: {
 					accessKeyId: data.accessKeyId,
 					secretAccessKey: data.secretAccessKey,
@@ -244,7 +245,12 @@ app.post(
 			});
 
 			try {
-				await s3Client.send(new HeadBucketCommand({ Bucket: data.bucketName }));
+				await s3Client.send(
+					new ListObjectsV2Command({
+						Bucket: data.bucketName,
+						MaxKeys: 1,
+					}),
+				);
 
 				clearTimeout(timeoutId);
 			} catch (error) {
