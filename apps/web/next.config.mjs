@@ -24,6 +24,7 @@ const ffmpegTracingIncludes = ffmpegStaticPath
 	: [];
 
 const nextConfig = {
+	deploymentId: process.env.RAILWAY_GIT_COMMIT_SHA,
 	outputFileTracingRoot: path.resolve(appDirectory, "../.."),
 	reactStrictMode: true,
 	serverExternalPackages: ["ffmpeg-static", "prettier"],

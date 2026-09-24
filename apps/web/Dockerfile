@@ -11,6 +11,7 @@ RUN bun install --frozen-lockfile
 
 ARG NEXT_PUBLIC_DOCKER_BUILD=true
 ARG NEXT_PUBLIC_WEB_URL=https://cap.o37group.com
+ARG RAILWAY_GIT_COMMIT_SHA
 ENV NEXT_PUBLIC_WEB_URL=$NEXT_PUBLIC_WEB_URL
 
 RUN bun run build:web
