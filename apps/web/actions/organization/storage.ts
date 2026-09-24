@@ -1,7 +1,11 @@
 "use server";
 
 import { createHmac } from "node:crypto";
-import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import {
+	HeadObjectCommand,
+	ListObjectsV2Command,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
 import { decrypt, encrypt } from "@cap/database/crypto";
@@ -301,8 +305,8 @@ const getS3InputCredentials = async (input: S3ConfigInput) => {
 
 	if (hasAccessKeyId && hasSecretAccessKey) {
 		return {
-			accessKeyId: input.accessKeyId,
-			secretAccessKey: input.secretAccessKey,
+			accessKeyId: input.accessKeyId.trim(),
+			secretAccessKey: input.secretAccessKey.trim(),
 		};
 	}
 
@@ -463,6 +467,10 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 		}
 	}
 	let credentials: Awaited<ReturnType<typeof getS3InputCredentials>>;
+	const credentialSource =
+		input.accessKeyId.trim() && input.secretAccessKey.trim()
+			? "entered"
+			: "saved";
 	try {
 		credentials = await getS3InputCredentials(input);
 	} catch (error) {
@@ -500,9 +508,29 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 		);
 		return { success: true as const };
 	} catch (error) {
+		const isR2AccessDenied =
+			input.provider === "cloudflare" &&
+			getS3ErrorMetadata(error)?.httpStatusCode === 403;
+		let objectReadStatus: number | undefined;
+		if (isR2AccessDenied) {
+			try {
+				await s3Client.send(
+					new HeadObjectCommand({
+						Bucket: input.bucketName,
+						Key: `cap-connection-test/${nanoId()}`,
+					}),
+					{ abortSignal: controller.signal },
+				);
+				objectReadStatus = 200;
+			} catch (probeError) {
+				objectReadStatus = getS3ErrorMetadata(probeError)?.httpStatusCode;
+			}
+		}
 		console.error("[organization-storage] S3 connection test failed", {
 			name: error instanceof Error ? error.name : "Unknown",
 			status: getS3ErrorMetadata(error)?.httpStatusCode,
+			credentialSource,
+			objectReadStatus,
 			cause:
 				error instanceof Error && error.cause instanceof Error
 					? error.cause.name
@@ -510,7 +538,11 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 		});
 		return {
 			success: false as const,
-			error: getS3ConnectionErrorMessage(error, input.bucketName),
+			error:
+				getS3ConnectionErrorMessage(error, input.bucketName) +
+				(isR2AccessDenied
+					? ` Tested ${credentialSource} keys. Object read check: ${objectReadStatus ? `HTTP ${objectReadStatus}` : "unavailable"}.`
+					: ""),
 		};
 	} finally {
 		clearTimeout(timeoutId);
