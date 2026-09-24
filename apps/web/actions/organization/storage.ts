@@ -204,8 +204,17 @@ const getS3ConnectionErrorMessage = (error: unknown, bucketName: string) => {
 	if (getS3ErrorMetadata(error)?.httpStatusCode === 301) {
 		return "Received 301 redirect. This usually means the endpoint URL is incorrect or the bucket is in a different region.";
 	}
+	if (getS3ErrorMetadata(error)?.httpStatusCode === 403) {
+		return "Bucket access denied. Check the access keys and bucket permissions.";
+	}
+	if (getS3ErrorMetadata(error)?.httpStatusCode === 404) {
+		return `Bucket '${bucketName}' was not found at this endpoint.`;
+	}
+	if (getS3ErrorMetadata(error)?.httpStatusCode === 400) {
+		return "The bucket request was rejected. Check the endpoint, bucket name, and region.";
+	}
 
-	return "Failed to connect to S3";
+	return "Failed to connect to S3. Check the endpoint, bucket name, region, and credentials.";
 };
 
 const driveHasStoredData = async (
@@ -426,12 +435,53 @@ export async function removeOrganizationS3Config(
 
 export async function testOrganizationS3Config(input: S3ConfigInput) {
 	await requireOrganizationStorageManagerPro(input.organizationId);
-	const credentials = await getS3InputCredentials(input);
+	if (!input.bucketName.trim()) {
+		return { success: false as const, error: "Enter a bucket name" };
+	}
+	if (input.provider === "cloudflare") {
+		let endpoint: URL;
+		try {
+			endpoint = new URL(input.endpoint);
+		} catch {
+			return {
+				success: false as const,
+				error: "Enter the R2 S3 endpoint from Cloudflare, including https://",
+			};
+		}
+		if (
+			endpoint.protocol !== "https:" ||
+			!endpoint.hostname.endsWith(".r2.cloudflarestorage.com") ||
+			endpoint.pathname !== "/"
+		) {
+			return {
+				success: false as const,
+				error: "Use the R2 S3 endpoint from Cloudflare for this bucket",
+			};
+		}
+		if (input.region !== "auto") {
+			return { success: false as const, error: "Use auto as the R2 region" };
+		}
+	}
+	let credentials: Awaited<ReturnType<typeof getS3InputCredentials>>;
+	try {
+		credentials = await getS3InputCredentials(input);
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			(error.message === "Access key ID and secret access key are required" ||
+				error.message ===
+					"Enter both access key ID and secret access key to change credentials")
+		) {
+			return { success: false as const, error: error.message };
+		}
+		throw error;
+	}
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), 5000);
 	const s3Client = new S3Client({
 		endpoint: input.endpoint || undefined,
 		region: input.region,
+		forcePathStyle: input.provider === "cloudflare",
 		credentials: {
 			accessKeyId: credentials.accessKeyId,
 			secretAccessKey: credentials.secretAccessKey,
@@ -442,11 +492,23 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 		await s3Client.send(new HeadBucketCommand({ Bucket: input.bucketName }), {
 			abortSignal: controller.signal,
 		});
-		return { success: true };
+		return { success: true as const };
 	} catch (error) {
-		throw new Error(getS3ConnectionErrorMessage(error, input.bucketName));
+		console.error("[organization-storage] S3 connection test failed", {
+			name: error instanceof Error ? error.name : "Unknown",
+			status: getS3ErrorMetadata(error)?.httpStatusCode,
+			cause:
+				error instanceof Error && error.cause instanceof Error
+					? error.cause.name
+					: undefined,
+		});
+		return {
+			success: false as const,
+			error: getS3ConnectionErrorMessage(error, input.bucketName),
+		};
 	} finally {
 		clearTimeout(timeoutId);
+		s3Client.destroy();
 	}
 }
 

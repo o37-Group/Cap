@@ -164,10 +164,12 @@ export function OrganizationStorageIntegrations({
 			"S3 configuration saved",
 		);
 
-	const testS3 = () =>
-		runMutation(
-			() =>
-				testOrganizationS3Config({
+	const testS3 = () => {
+		if (!requirePro()) return;
+
+		startTransition(async () => {
+			try {
+				const result = await testOrganizationS3Config({
 					organizationId,
 					provider: s3Config.provider,
 					accessKeyId: s3Config.accessKeyId,
@@ -175,9 +177,21 @@ export function OrganizationStorageIntegrations({
 					endpoint: s3Config.endpoint,
 					bucketName: s3Config.bucketName,
 					region: s3Config.region,
-				}),
-			"S3 connection verified",
-		);
+				});
+				if (result.success) {
+					toast.success("S3 connection verified");
+				} else {
+					toast.error(result.error);
+				}
+			} catch (error) {
+				if (error instanceof Error && error.message === proRequiredMessage) {
+					setUpgradeModalOpen(true);
+					return;
+				}
+				toast.error(error instanceof Error ? error.message : "Request failed");
+			}
+		});
+	};
 
 	const connectDrive = () =>
 		runMutation(async () => {
@@ -375,6 +389,15 @@ export function OrganizationStorageIntegrations({
 										setS3Config((current) => ({
 											...current,
 											provider: value,
+											endpoint:
+												value === "cloudflare" &&
+												current.endpoint === "https://s3.amazonaws.com"
+													? ""
+													: current.endpoint,
+											region:
+												value === "cloudflare" && current.region === "us-east-1"
+													? "auto"
+													: current.region,
 										}))
 									}
 									placeholder="Select provider"
@@ -428,7 +451,11 @@ export function OrganizationStorageIntegrations({
 								<Input
 									id={endpointId}
 									value={s3Config.endpoint}
-									placeholder="https://s3.amazonaws.com"
+									placeholder={
+										s3Config.provider === "cloudflare"
+											? "https://<account-id>.r2.cloudflarestorage.com"
+											: "https://s3.amazonaws.com"
+									}
 									onChange={(event) =>
 										setS3Config((current) => ({
 											...current,
@@ -460,7 +487,9 @@ export function OrganizationStorageIntegrations({
 								<Input
 									id={regionId}
 									value={s3Config.region}
-									placeholder="us-east-1"
+									placeholder={
+										s3Config.provider === "cloudflare" ? "auto" : "us-east-1"
+									}
 									onChange={(event) =>
 										setS3Config((current) => ({
 											...current,
