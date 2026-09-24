@@ -495,6 +495,23 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 			secretAccessKey: credentials.secretAccessKey,
 		},
 	});
+	let requestTarget: string | undefined;
+	s3Client.middlewareStack.add(
+		(next) => async (args) => {
+			const request = args.request;
+			if (
+				!requestTarget &&
+				request &&
+				typeof request === "object" &&
+				"hostname" in request &&
+				"path" in request
+			) {
+				requestTarget = `${String(request.hostname)}${String(request.path)}`;
+			}
+			return next(args);
+		},
+		{ step: "build", name: "captureStorageTestTarget" },
+	);
 
 	try {
 		await s3Client.send(
@@ -529,6 +546,7 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 		console.error("[organization-storage] S3 connection test failed", {
 			name: error instanceof Error ? error.name : "Unknown",
 			status: getS3ErrorMetadata(error)?.httpStatusCode,
+			requestTarget,
 			credentialSource,
 			objectReadStatus,
 			cause:
