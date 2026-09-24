@@ -127,6 +127,27 @@ export function OrganizationStorageIntegrations({
 		return false;
 	};
 
+	const ensureCurrentDeployment = async () => {
+		const pageDeploymentId = document.documentElement.dataset.dplId;
+		if (!pageDeploymentId) return true;
+
+		try {
+			const response = await fetch("/api/health", { cache: "no-store" });
+			if (!response.ok) throw new Error("Version check failed");
+			const result = (await response.json()) as { deploymentId?: string };
+			if (result.deploymentId && result.deploymentId !== pageDeploymentId) {
+				toast.error(
+					"Cap was updated. Keep any new keys safe, reload this page, then enter them again.",
+				);
+				return false;
+			}
+			return true;
+		} catch {
+			toast.error("Could not verify the current Cap version. Try again.");
+			return false;
+		}
+	};
+
 	const runMutation = (
 		action: () => Promise<unknown>,
 		successMessage: string,
@@ -135,6 +156,7 @@ export function OrganizationStorageIntegrations({
 
 		startTransition(async () => {
 			try {
+				if (!(await ensureCurrentDeployment())) return;
 				await action();
 				toast.success(successMessage);
 				router.refresh();
@@ -169,6 +191,7 @@ export function OrganizationStorageIntegrations({
 
 		startTransition(async () => {
 			try {
+				if (!(await ensureCurrentDeployment())) return;
 				const result = await testOrganizationS3Config({
 					organizationId,
 					provider: s3Config.provider,
