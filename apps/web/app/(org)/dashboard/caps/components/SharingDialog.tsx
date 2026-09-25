@@ -35,6 +35,7 @@ import type { CurrentUser } from "@/app/Layout/AuthContext";
 import { SignedImageUrl } from "@/components/SignedImageUrl";
 import { Tooltip } from "@/components/Tooltip";
 import { buildEmbedCode } from "@/lib/embed-code";
+import { usePublicEnv } from "@/utils/public-env";
 
 interface SharingDialogProps {
 	isOpen: boolean;
