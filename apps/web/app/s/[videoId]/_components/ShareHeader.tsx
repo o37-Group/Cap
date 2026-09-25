@@ -1,6 +1,5 @@
 "use client";
 
-import { buildEnv, NODE_ENV } from "@cap/env";
 import {
 	Button,
 	DropdownMenu,
@@ -58,6 +57,7 @@ import {
 	copyRichVideoLink,
 	videoPreviewImageUrl,
 } from "@/lib/video-share-clipboard";
+import { buildVideoShareUrl } from "@/lib/video-share-url";
 import { usePublicEnv } from "@/utils/public-env";
 import { navigateWithTransition } from "@/utils/view-transition";
 import type { SharePageBranding, VideoData } from "../types";
@@ -428,27 +428,18 @@ export const ShareHeader = ({
 		}
 	};
 
-	const getVideoLink = () => {
-		if (
-			(NODE_ENV === "development" || buildEnv.NEXT_PUBLIC_IS_CAP) &&
-			customDomain &&
-			domainVerified
-		) {
-			return `https://${customDomain}/s/${data.id}`;
-		}
-		return `${webUrl}/s/${data.id}`;
-	};
+	const shareUrl = buildVideoShareUrl({
+		videoId: data.id,
+		webUrl,
+		customDomain,
+		domainVerified,
+	});
+	const getVideoLink = () => shareUrl;
 
-	const getDisplayLink = () => {
-		if (
-			(NODE_ENV === "development" || buildEnv.NEXT_PUBLIC_IS_CAP) &&
-			customDomain &&
-			domainVerified
-		) {
-			return `${customDomain}/s/${data.id}`;
-		}
-		return `${webUrl}/s/${data.id}`;
-	};
+	const getDisplayLink = () =>
+		customDomain && domainVerified
+			? shareUrl.replace(/^https?:\/\//, "")
+			: shareUrl;
 
 	const formatTimestamp = (seconds: number): string => {
 		const h = Math.floor(seconds / 3600);
@@ -837,6 +828,7 @@ export const ShareHeader = ({
 					isOpen={isSharingDialogOpen}
 					onClose={() => setIsSharingDialogOpen(false)}
 					capId={data.id}
+					shareUrl={shareUrl}
 					capName={data.name}
 					sharedSpaces={effectiveSharedSpaces || []}
 					onSharingUpdated={handleSharingUpdated}

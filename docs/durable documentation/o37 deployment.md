@@ -10,6 +10,14 @@ No Railway object storage bucket was created. On 2026-09-23, Railway showed both
 
 ## September 25 upstream update
 
+### Dashboard share-domain correction
+
+The dashboard card and recording-page header previously restricted custom share URLs to Cap's hosted build. The Share dialog always copied the application URL. The correction uses `buildVideoShareUrl` in both parent controls and passes that same URL to the Share dialog. A configured and verified organization domain takes precedence on self-hosted builds. Missing or unverified domains fall back to `WEB_URL`. The canonical application URL and embed routing remain unchanged.
+
+This correction changes link construction only. It retains the existing organization selection and authorization logic. Host-to-recording organization isolation needs separate acceptance. Validate the card Copy link, Share dialog Copy link, and recording-page copy control after release. Check both configured share domains and a missing or unverified-domain fallback. Keep private recordings private during verification.
+
+The September 25 investigation verified that Railway production uses `o37-Group/Cap@main`, serves successful commit `a692381028050a233f364371981d6a7864abe3ca`, and has both `clips.o37group.com` and `clips.e76.co` attached. Authenticated Chrome showed `clips.o37group.com` in o37 Group's settings. The correction is not yet deployed at the time of this entry.
+
 The update branch merges all 28 upstream commits through `40f44a803` into the fork. The merge preserves the Cloudflare email and AI adapters, Railway domains, R2 PUT uploads, and deployment-version checks. [Pull request 1](https://github.com/o37-Group/Cap/pull/1) records the release.
 
 New features include private recording defaults per organization, invited viewers for private recordings, share-page dashboard navigation, call-to-action buttons, captions-off links, and recording recovery fixes. The private default is under **Organization Settings → Preferences → Sharing default → Start new recordings private**. Existing recordings retain their settings. The server applies the organization default to desktop, mobile, API, and web recording creation. This update does not include a new desktop binary.
