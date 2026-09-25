@@ -8,7 +8,9 @@ function json(data, status = 200) {
 export default {
 	async fetch(request, env) {
 		if (request.method !== "POST") return json({ error: "Not found" }, 404);
-		if (request.headers.get("Authorization") !== `Bearer ${env.CAP_ADAPTER_TOKEN}`)
+		if (
+			request.headers.get("Authorization") !== `Bearer ${env.CAP_ADAPTER_TOKEN}`
+		)
 			return json({ error: "Unauthorized" }, 401);
 
 		const path = new URL(request.url).pathname;
@@ -40,7 +42,10 @@ export default {
 					result: { queued: [body.to], delivered: [], permanent_bounces: [] },
 				});
 			} catch (error) {
-					return json({ success: false, errors: [{ message: String(error) }] }, 502);
+				return json(
+					{ success: false, errors: [{ message: String(error) }] },
+					502,
+				);
 			}
 		}
 
