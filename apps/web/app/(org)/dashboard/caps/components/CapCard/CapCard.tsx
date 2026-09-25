@@ -2,7 +2,6 @@
 
 import type { videos as videosSchema } from "@cap/database/schema";
 import type { VideoMetadata } from "@cap/database/types";
-import { buildEnv, NODE_ENV } from "@cap/env";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -53,6 +52,7 @@ import {
 	copyRichVideoLink,
 	videoPreviewImageUrl,
 } from "@/lib/video-share-clipboard";
+import { buildVideoShareUrl } from "@/lib/video-share-url";
 import { usePublicEnv } from "@/utils/public-env";
 import { MoveItemsDialog } from "../MoveItemsDialog";
 import { PasswordDialog } from "../PasswordDialog";
@@ -170,6 +170,12 @@ export const CapCard = ({
 	const effectivePasswordProtected =
 		passwordProtected || Boolean(cap.hasInheritedPassword);
 	const { webUrl } = usePublicEnv();
+	const shareUrl = buildVideoShareUrl({
+		videoId: cap.id,
+		webUrl,
+		customDomain,
+		domainVerified,
+	});
 
 	const [copyPressed, setCopyPressed] = useState(false);
 	const [isDragging, setIsDragging] = useState(false);
@@ -365,13 +371,7 @@ export const CapCard = ({
 	};
 
 	const copyLinkHandler = () => {
-		handleCopy(
-			NODE_ENV === "development"
-				? `${webUrl}/s/${cap.id}`
-				: buildEnv.NEXT_PUBLIC_IS_CAP && customDomain && domainVerified
-					? `https://${customDomain}/s/${cap.id}`
-					: `${webUrl}/s/${cap.id}`,
-		);
+		handleCopy(shareUrl);
 	};
 	const canEditVideo =
 		isOwner &&
@@ -399,6 +399,7 @@ export const CapCard = ({
 				isOpen={isSharingDialogOpen}
 				onClose={() => setIsSharingDialogOpen(false)}
 				capId={cap.id}
+				shareUrl={shareUrl}
 				capName={cap.name}
 				sharedSpaces={cap.sharedSpaces || []}
 				onSharingUpdated={handleSharingUpdated}
