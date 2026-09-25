@@ -8,8 +8,6 @@ The Railway web, MySQL, and media services report successful deployments. The we
 
 No Railway object storage bucket was created. On 2026-09-23, Railway showed both R2 key variables populated on `cap-web`. A temporary R2 object passed write, read, and delete checks from the running service. An application icon upload and recording playback still need verification.
 
-## Resource inventory
-
 ## September 25 upstream update
 
 The update branch merges all 28 upstream commits through `40f44a803` into the fork. The merge preserves the Cloudflare email and AI adapters, Railway domains, R2 PUT uploads, and deployment-version checks. [Pull request 1](https://github.com/o37-Group/Cap/pull/1) records the release.
@@ -18,9 +16,9 @@ New features include private recording defaults per organization, invited viewer
 
 Migration `0049_jittery_professor_monster` adds the viewer-grants table and organization visibility preference. The migration journal is append-only. Running the schema generator against the committed snapshot produces no extra migration. The container applies migrations at startup; verify the migration-success log after deployment.
 
-Pre-deployment checks passed: 342 tests in 19 changed web suites, 75 recorder-core tests, the fork CI typecheck, and the recording-reliability workflow. The repository formatting check passed after one formatting-only correction to the existing Cloudflare adapter. Desktop packaging is separate from this web and media release.
+Pre-deployment checks passed: 342 tests in 19 changed web suites, 75 recorder-core tests, 59 FFmpeg-backed media integration tests, the fork CI typecheck, and the recording-reliability workflow. The repository formatting check passed after one formatting-only correction to the existing Cloudflare adapter. Desktop packaging is separate from this web and media release.
 
-The media service must use this fork's `main` branch with the repository root as build context and config path `/apps/media-server/railway.json`. This config selects its Dockerfile and `/health` check. Preserve its existing service ID, private network, port, and webhook secret. Verify Railway `SUCCESS` for the exact web and media commit before calling the release deployed. The previous web commit is `22c6712a7e69963dc79dabcf641eef70f3d4cba1`; its successful deployment is `af0f1f4e-eb44-49d9-b51a-a0f439c8c107`. Retain the additive migration during a rollback.
+Railway now connects the existing media service to this fork's `main` branch. A live readback confirmed builder `DOCKERFILE`, path `apps/media-server/Dockerfile`, and health check `/health` with a 300-second timeout. The repository root remains the build context. The service ID, private network, port, and webhook secret remain in place. Railway rejected the deprecated `railway.json` configuration mechanism, so these settings use the service configuration API. Verify Railway `SUCCESS` for the exact web and media commit before calling the release deployed. The previous web commit is `22c6712a7e69963dc79dabcf641eef70f3d4cba1`; its successful deployment is `af0f1f4e-eb44-49d9-b51a-a0f439c8c107`. Retain the additive migration during a rollback.
 
 ## Resource inventory at initial setup
 
@@ -82,7 +80,7 @@ The web service also has `AI_API_KEY` and `CLOUDFLARE_EMAIL_API_TOKEN`. Both hol
 
 The web service keeps the repository root as its build context because the Dockerfile copies the monorepo. Its Dockerfile path is `apps/web/Dockerfile`, and its health check is `/api/health`. Automatic deployment was verified: pushing commit `eebd8ec72b3560c2f9da21625616a81d6866b0ee` to `main` created deployment `6b3a78a0-f5cf-4900-9ab5-2b4914b3ade1` without a manual Railway command. Railway reported `SUCCESS`, and `https://cap.o37group.com/api/health` returned 200 with a valid public TLS connection afterward.
 
-The media service currently runs the upstream `ghcr.io/capsoftware/cap-media-server:latest` image. Changes to `apps/media-server` in this fork will not update that service. If forked media code must auto-deploy too, connect the same repository and `main` branch to the existing `media-server` service, use the repository root as build context, set Dockerfile path `apps/media-server/Dockerfile`, and verify one build and deployment. Keep the existing private networking and webhook secret. MySQL remains an image service and does not deploy from this repository.
+The media service initially ran `ghcr.io/capsoftware/cap-media-server:latest`. On September 25 it was connected to the fork's `main` branch with `apps/media-server/Dockerfile` and a `/health` check. Future main pushes now deploy both web and media code. MySQL remains an image service and does not deploy from this repository.
 
 If a future push does not deploy, check Railway's GitHub autodeploy setting, skipped deployments, and the GitHub App's access to this repository. Do not create a replacement web service; the current service holds the domain and variables.
 
