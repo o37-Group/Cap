@@ -10,6 +10,20 @@ No Railway object storage bucket was created. On 2026-09-23, Railway showed both
 
 ## Resource inventory
 
+## September 25 upstream update
+
+The update branch merges all 28 upstream commits through `40f44a803` into the fork. The merge preserves the Cloudflare email and AI adapters, Railway domains, R2 PUT uploads, and deployment-version checks. [Pull request 1](https://github.com/o37-Group/Cap/pull/1) records the release.
+
+New features include private recording defaults per organization, invited viewers for private recordings, share-page dashboard navigation, call-to-action buttons, captions-off links, and recording recovery fixes. The private default is under **Organization Settings → Preferences → Sharing default → Start new recordings private**. Existing recordings retain their settings. The server applies the organization default to desktop, mobile, API, and web recording creation. This update does not include a new desktop binary.
+
+Migration `0049_jittery_professor_monster` adds the viewer-grants table and organization visibility preference. The migration journal is append-only. Running the schema generator against the committed snapshot produces no extra migration. The container applies migrations at startup; verify the migration-success log after deployment.
+
+Pre-deployment checks passed: 342 tests in 19 changed web suites, 75 recorder-core tests, the fork CI typecheck, and the recording-reliability workflow. The repository formatting check passed after one formatting-only correction to the existing Cloudflare adapter. Desktop packaging is separate from this web and media release.
+
+The media service must use this fork's `main` branch with the repository root as build context and config path `/apps/media-server/railway.json`. This config selects its Dockerfile and `/health` check. Preserve its existing service ID, private network, port, and webhook secret. Verify Railway `SUCCESS` for the exact web and media commit before calling the release deployed. The previous web commit is `22c6712a7e69963dc79dabcf641eef70f3d4cba1`; its successful deployment is `af0f1f4e-eb44-49d9-b51a-a0f439c8c107`. Retain the additive migration during a rollback.
+
+## Resource inventory at initial setup
+
 | Resource | Identifier | State at setup |
 | --- | --- | --- |
 | Railway workspace | `e76 Systems` | Existing workspace used for this project. |
