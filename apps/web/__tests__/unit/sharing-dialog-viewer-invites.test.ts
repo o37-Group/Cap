@@ -76,6 +76,7 @@ async function render() {
 					isOpen: true,
 					onClose: vi.fn(),
 					capId: Video.VideoId.make("video-id"),
+					shareUrl: "https://cap.example/s/video-id",
 					capName: "Test video",
 					sharedSpaces: [],
 					onSharingUpdated: vi.fn(),
