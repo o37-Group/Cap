@@ -17,6 +17,8 @@ use super::{ForcedAppearance, MaterialKind, PanelBehavior};
 
 mod capture_exclusion;
 mod hidden_frame;
+mod session_end;
+mod url_scheme;
 
 #[derive(Clone, Copy)]
 pub struct NativeWindow(isize);
@@ -66,6 +68,13 @@ pub fn native_window(window: &Window) -> Option<NativeWindow> {
 
 pub fn install_main_window_frame_policy(native: &NativeWindow) -> std::io::Result<()> {
     hidden_frame::install(native.hwnd())
+}
+
+pub fn install_session_end_handler(
+    native: &NativeWindow,
+    on_session_end: fn(),
+) -> std::io::Result<()> {
+    session_end::install(native.hwnd(), on_session_end)
 }
 
 #[link(name = "dwmapi")]
@@ -605,7 +614,9 @@ pub fn focus_capture_target_window(id: &scap_targets::WindowId) -> bool {
     }
 }
 
-pub fn install_url_scheme_handler() {}
+pub fn install_url_scheme_handler() {
+    url_scheme::install();
+}
 
 pub fn set_dock_icon(_png: &[u8]) {}
 
