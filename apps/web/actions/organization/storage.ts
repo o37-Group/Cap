@@ -29,6 +29,11 @@ import {
 import { type Organisation, S3Bucket, Storage } from "@cap/web-domain";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import {
+	blockedS3EndpointMessage,
+	isDisallowedS3Endpoint,
+	publicOnlyS3Agents,
+} from "@/lib/s3-endpoint-policy";
 import { runPromise } from "@/lib/server";
 import { requireOrganizationSettingsManager } from "./authorization";
 
@@ -399,6 +404,9 @@ export async function saveOrganizationS3Config(input: S3ConfigInput) {
 	);
 	const bucketName = input.bucketName.trim();
 	if (!bucketName) throw new Error("Enter a bucket name");
+	if (await isDisallowedS3Endpoint(input.endpoint)) {
+		throw new Error(blockedS3EndpointMessage);
+	}
 	const credentials = await getS3InputCredentials(input);
 	const encryptedConfig = {
 		provider: input.provider,
@@ -487,6 +495,9 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 		}
 		throw error;
 	}
+	if (await isDisallowedS3Endpoint(input.endpoint)) {
+		return { success: false as const, error: blockedS3EndpointMessage };
+	}
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), 5000);
 	const s3Client = new S3Client({
@@ -497,6 +508,7 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 			accessKeyId: credentials.accessKeyId,
 			secretAccessKey: credentials.secretAccessKey,
 		},
+		requestHandler: publicOnlyS3Agents(),
 	});
 	let requestTarget: string | undefined;
 	s3Client.middlewareStack.add(

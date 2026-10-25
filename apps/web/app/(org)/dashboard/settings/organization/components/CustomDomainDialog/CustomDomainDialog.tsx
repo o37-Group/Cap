@@ -263,6 +263,22 @@ const CustomDomainDialog = ({
 		onClose();
 	}, [handleReset, onClose]);
 
+	const handleCloseRef = useRef(handleClose);
+	handleCloseRef.current = handleClose;
+
+	useEffect(() => {
+		if (isVerified) {
+			dispatch({ type: "GO_TO_STEP", payload: 2 });
+		}
+	}, [isVerified]);
+
+	useEffect(() => {
+		if (stepState.currentIndex !== 2) return;
+		// Read handleClose via a ref: the parent passes an inline onClose, so depending on it would restart the countdown on every parent render.
+		const timer = setTimeout(() => handleCloseRef.current(), 8000);
+		return () => clearTimeout(timer);
+	}, [stepState.currentIndex]);
+
 	const checkVerification = useCallback(
 		(showToasts = true) => {
 			if (

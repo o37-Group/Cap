@@ -55,6 +55,10 @@ pub struct AudioMeta {
     pub device_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gap_summary: Option<AudioGapSummary>,
+    /// Milliseconds the unmuted microphone delivered sustained bit-exact silence,
+    /// e.g. while a VoIP call held the input on macOS.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub digital_silence_ms: Option<u32>,
 }
 
 /// Overlap-trim accounting captured by the recorder's audio gap tracker, persisted so the
@@ -370,6 +374,12 @@ impl RecordingMeta {
 }
 
 fn normalize_relative_path(path: &mut RelativePathBuf) {
+    // No real file name holds a NUL, and every media opener (FFmpeg, AVFoundation)
+    // converts the path to a C string, which a NUL makes fail or panic. Dropping
+    // it turns a damaged meta into an ordinary missing file.
+    if path.as_str().contains('\0') {
+        *path = RelativePathBuf::from(path.as_str().replace('\0', ""));
+    }
     let original = path.as_str();
     let normalized = original.replace('\\', "/");
 
@@ -660,6 +670,12 @@ pub struct MultipleSegment {
 }
 
 impl MultipleSegment {
+    pub fn usable_system_audio(&self) -> Option<&AudioMeta> {
+        self.system_audio
+            .as_ref()
+            .filter(|audio| audio.start_time.is_some() == self.display.start_time.is_some())
+    }
+
     pub fn path(&self, meta: &RecordingMeta, path: impl AsRef<Path>) -> PathBuf {
         meta.project_path.join(path)
     }
@@ -731,7 +747,7 @@ impl MultipleSegment {
             value = value.max(mic.start_time?);
         }
 
-        if let Some(system_audio) = &self.system_audio {
+        if let Some(system_audio) = self.usable_system_audio() {
             value = value.max(system_audio.start_time?);
         }
 
@@ -761,8 +777,7 @@ impl MultipleSegment {
             .unwrap_or(0.0);
 
         let system_audio_offset = self
-            .system_audio
-            .as_ref()
+            .usable_system_audio()
             .and_then(|s| s.start_time)
             .map(|t| (latest - t) as f32 + cal_offset)
             .unwrap_or(0.0);
@@ -1136,6 +1151,7 @@ mod test {
                 start_time,
                 device_id: None,
                 gap_summary: None,
+                digital_silence_ms: None,
             }
         }
 
@@ -1198,6 +1214,24 @@ mod test {
             let offsets = early.calculate_audio_offsets_with_calibration(Some(0.05));
             assert_eq!(offsets.camera, 0.0);
             assert!((offsets.mic - 0.05).abs() < 1e-6);
+        }
+
+        #[test]
+        fn mismatched_system_audio_does_not_affect_timing_or_audio_selection() {
+            let mut segment = segment(10.0, Some(10.5), Some(11.0));
+            segment.camera = Some(video(Some(10.25)));
+            assert_eq!(segment.latest_start_time(), Some(11.0));
+            assert!(segment.usable_system_audio().is_some());
+
+            segment.system_audio.as_mut().unwrap().start_time = None;
+            assert!(segment.usable_system_audio().is_none());
+            assert_eq!(segment.latest_start_time(), Some(10.5));
+            let offsets = segment.calculate_audio_offsets();
+            assert_eq!(offsets.mic, 0.0);
+            assert_eq!(offsets.system_audio, 0.0);
+
+            segment.display.start_time = None;
+            assert!(segment.usable_system_audio().is_some());
         }
     }
 }
@@ -1519,5 +1553,17 @@ mod ordinary_media_access_tests {
                 .is_err()
         );
         assert!(diagnostics.is_dir());
+    }
+}
+
+#[cfg(test)]
+mod nul_path_tests {
+    use super::*;
+
+    #[test]
+    fn a_nul_in_a_media_path_is_dropped() {
+        let mut path = RelativePathBuf::from("content/segments/segment-0/disp\0lay.mp4");
+        normalize_relative_path(&mut path);
+        assert_eq!(path.as_str(), "content/segments/segment-0/display.mp4");
     }
 }

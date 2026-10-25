@@ -6,6 +6,59 @@ import { Resend } from "resend";
 export const resend = () =>
 	serverEnv().RESEND_API_KEY ? new Resend(serverEnv().RESEND_API_KEY) : null;
 
+export const EMAIL_NOT_CONFIGURED_MESSAGE = "Email (Resend) is not configured";
+
+export type EmailDeliveryStatus =
+	| { configured: true }
+	| { configured: false; reason: string };
+
+export function getEmailDeliveryStatus(): EmailDeliveryStatus {
+	const env = serverEnv();
+	if (env.CLOUDFLARE_EMAIL_API_TOKEN) {
+		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.RESEND_FROM_DOMAIN?.trim()) {
+			return {
+				configured: false,
+				reason:
+					"Email delivery is not configured: Cloudflare requires CLOUDFLARE_ACCOUNT_ID and RESEND_FROM_DOMAIN",
+			};
+		}
+		return { configured: true };
+	}
+	if (!env.RESEND_API_KEY) {
+		return {
+			configured: false,
+			reason: `${EMAIL_NOT_CONFIGURED_MESSAGE}: RESEND_API_KEY is not set`,
+		};
+	}
+	if (
+		buildEnv.NEXT_PUBLIC_IS_CAP !== "true" &&
+		!env.RESEND_FROM_DOMAIN?.trim()
+	) {
+		return {
+			configured: false,
+			reason: `${EMAIL_NOT_CONFIGURED_MESSAGE}: RESEND_FROM_DOMAIN is not set`,
+		};
+	}
+	return { configured: true };
+}
+
+export const isEmailDeliveryConfigured = () =>
+	getEmailDeliveryStatus().configured;
+
+let warnedEmailNotConfigured = false;
+
+function warnEmailNotConfigured(reason: string) {
+	if (warnedEmailNotConfigured) return;
+	warnedEmailNotConfigured = true;
+	console.warn(
+		`[email] ${reason}. Emails will not be sent; login codes are printed to the server log instead.`,
+	);
+}
+
+export type SendEmailResult =
+	| { data: { id: string } | null; error: null }
+	| { data: null; error: { name: string; message: string } };
+
 export const sendEmail = async ({
 	email,
 	subject,
@@ -34,7 +87,7 @@ export const sendEmail = async ({
 		content: Buffer | string;
 		contentType?: string;
 	}[];
-}) => {
+}): Promise<SendEmailResult | undefined> => {
 	const env = serverEnv();
 	if (
 		buildEnv.NEXT_PUBLIC_IS_CAP !== "true" &&
@@ -47,32 +100,50 @@ export const sendEmail = async ({
 		);
 	}
 	const cloudflareToken = env.CLOUDFLARE_EMAIL_API_TOKEN;
-	const r = cloudflareToken ? null : resend();
-	if (!cloudflareToken && !r) {
-		return Promise.resolve();
+	if (cloudflareToken) {
+		const emailStatus = getEmailDeliveryStatus();
+		if (!emailStatus.configured) {
+			warnEmailNotConfigured(emailStatus.reason);
+			return {
+				data: null,
+				error: { name: "email_not_configured", message: emailStatus.reason },
+			};
+		}
+	} else if (!env.RESEND_API_KEY) {
+		const reason = `${EMAIL_NOT_CONFIGURED_MESSAGE}: RESEND_API_KEY is not set`;
+		warnEmailNotConfigured(reason);
+		return {
+			data: null,
+			error: { name: "email_not_configured", message: reason },
+		};
 	}
 
-	if (marketing && !buildEnv.NEXT_PUBLIC_IS_CAP) return;
-	let from: string;
-
-	if (fromOverride) from = fromOverride;
-	else if (marketing) from = "Richie from Cap <richie@send.cap.so>";
-	else if (buildEnv.NEXT_PUBLIC_IS_CAP)
-		from = "Cap Auth <no-reply@auth.cap.so>";
-	else from = `auth@${serverEnv().RESEND_FROM_DOMAIN}`;
-
+	const isCap = buildEnv.NEXT_PUBLIC_IS_CAP === "true";
+	if (marketing && !isCap) return;
+	const from = fromOverride
+		? fromOverride
+		: marketing
+			? "Richie from Cap <richie@send.cap.so>"
+			: isCap
+				? "Cap Auth <no-reply@auth.cap.so>"
+				: env.RESEND_FROM_DOMAIN?.trim()
+					? `auth@${env.RESEND_FROM_DOMAIN.trim()}`
+					: undefined;
+	if (!from?.includes("@")) {
+		const reason = `${EMAIL_NOT_CONFIGURED_MESSAGE}: RESEND_FROM_DOMAIN is not set`;
+		warnEmailNotConfigured(reason);
+		return {
+			data: null,
+			error: { name: "email_not_configured", message: reason },
+		};
+	}
 	if (cloudflareToken) {
-		if (!env.CLOUDFLARE_ACCOUNT_ID || !env.RESEND_FROM_DOMAIN) {
-			throw new Error(
-				"Cloudflare email requires CLOUDFLARE_ACCOUNT_ID and RESEND_FROM_DOMAIN",
-			);
-		}
 		if (test || scheduledAt) {
 			throw new Error(
 				"Cloudflare email does not support the Resend test address or scheduled sends",
 			);
 		}
-		const senderAddress = fromOverride?.match(/<([^>]+)>/)?.[1] ?? fromOverride;
+		const senderAddress = from.match(/<([^>]+)>/)?.[1] ?? from;
 		if (
 			senderAddress &&
 			!senderAddress.endsWith(`@${env.RESEND_FROM_DOMAIN}`)
@@ -134,8 +205,15 @@ export const sendEmail = async ({
 		};
 	}
 
-	if (!r) throw new Error("Email provider is not configured");
-	return r.emails.send(
+	const r = resend();
+	if (!r) {
+		const reason = `${EMAIL_NOT_CONFIGURED_MESSAGE}: RESEND_API_KEY is not set`;
+		return {
+			data: null,
+			error: { name: "email_not_configured", message: reason },
+		};
+	}
+	const result = await r.emails.send(
 		{
 			from,
 			to: test ? "delivered@resend.dev" : email,
@@ -148,4 +226,17 @@ export const sendEmail = async ({
 		},
 		idempotencyKey ? { idempotencyKey } : undefined,
 	);
+
+	if (result.error) {
+		console.error(
+			`[email] Resend rejected email "${subject}" from ${from}:`,
+			result.error.message,
+		);
+		return {
+			data: null,
+			error: { name: result.error.name, message: result.error.message },
+		};
+	}
+
+	return { data: result.data, error: null };
 };
