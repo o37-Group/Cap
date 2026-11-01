@@ -14,7 +14,9 @@ ARG NEXT_PUBLIC_WEB_URL=https://cap.o37group.com
 ARG RAILWAY_GIT_COMMIT_SHA
 ENV NEXT_PUBLIC_WEB_URL=$NEXT_PUBLIC_WEB_URL
 
-RUN bun run build:web
+RUN bunx turbo run build --filter='@cap/web^...' \
+	&& cd apps/web \
+	&& NODE_OPTIONS=--max-old-space-size=4096 bunx next build --webpack
 
 
 # 3. Production image, copy all the files and run next
