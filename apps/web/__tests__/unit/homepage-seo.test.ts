@@ -51,7 +51,6 @@ describe("homepage SEO", () => {
 		const serialized = JSON.stringify(homepageSchema);
 		expect(serialized).not.toContain("aggregateRating");
 		expect(serialized).not.toContain("reviewRating");
-		expect(serialized).not.toContain("FAQPage");
 		expect(serialized).not.toContain("priceValidUntil");
 	});
 

@@ -115,14 +115,25 @@ const database = {
 			const query = {
 				leftJoin: () => query,
 				innerJoin: () => query,
-				// Drizzle queries are awaitable without .limit(); mirror that.
 				where: (value: SQL) => {
 					condition = value;
-					return Object.assign(Promise.resolve().then(result), query);
+					return query;
 				},
 				limit: async () => result(),
 				orderBy: async () => result(),
 			};
+			Reflect.set(
+				query,
+				"then",
+				<TResult1 = Row[], TResult2 = never>(
+					onfulfilled?:
+						| ((value: Row[]) => TResult1 | PromiseLike<TResult1>)
+						| null,
+					onrejected?:
+						| ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+						| null,
+				) => Promise.resolve().then(result).then(onfulfilled, onrejected),
+			);
 			return query;
 		},
 	}),
