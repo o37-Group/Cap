@@ -33,7 +33,14 @@ pub struct StimulusSpec {
     /// `None` = borderless fullscreen on the primary display; otherwise a
     /// window at (x, y, width, height) in points.
     pub window: Option<(i32, i32, u32, u32)>,
+    /// A solid magenta window at (x, y, width, height) in points, in front
+    /// of the stimulus window: what a window-only capture must leave out.
+    #[serde(default)]
+    pub occluder: Option<(i32, i32, u32, u32)>,
 }
+
+/// The occluder's title, for the oracle to find its window.
+pub const OCCLUDER_TITLE: &str = "Cap Verify Occluder";
 
 impl StimulusSpec {
     pub fn frame_count(&self) -> u32 {
@@ -130,7 +137,7 @@ pub const SENTINEL_PERIOD_SECS: f64 = 0.002;
 
 /// Every wake of the stimulus's real-time sentinel thread (host ticks) and
 /// the scheduling it ran under.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 #[derive(Clone, Debug)]
 pub struct SentinelLog {
     pub realtime: crate::sched::Realtime,
@@ -138,7 +145,7 @@ pub struct SentinelLog {
     pub wakes: Vec<u64>,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 impl SentinelLog {
     pub fn read(path: &std::path::Path) -> anyhow::Result<Self> {
         #[derive(serde::Deserialize)]
@@ -190,10 +197,27 @@ pub fn host_add_secs(a: u64, secs: f64) -> u64 {
     (a as f64 + secs * 1e9 * f64::from(info.denom) / f64::from(info.numer)).round() as u64
 }
 
-#[cfg(target_os = "macos")]
+/// QueryPerformanceCounter ticks, the clock Windows capture is stamped with.
+#[cfg(windows)]
+pub fn host_now() -> u64 {
+    crate::sched::qpc_now()
+}
+
+/// Seconds between two host times (`a - b`).
+#[cfg(windows)]
+pub fn host_secs(a: u64, b: u64) -> f64 {
+    (a as f64 - b as f64) / crate::sched::qpc_frequency() as f64
+}
+
+#[cfg(windows)]
+pub fn host_add_secs(a: u64, secs: f64) -> u64 {
+    (a as f64 + secs * crate::sched::qpc_frequency() as f64).round() as u64
+}
+
+#[cfg(any(target_os = "macos", windows))]
 pub use process::StimulusProcess;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 mod process {
     use std::{
         io::{BufRead, BufReader, Write},

@@ -22,7 +22,7 @@ export const MESSENGER_AGENT: {
 export const CAP_REFERENCE_GUIDE = `CAP REFERENCE GUIDE (use this to give accurate, detailed answers with correct links):
 
 WHAT IS CAP:
-Cap is the open source alternative to Loom. It's a lightweight, powerful screen recording and video messaging tool for creators, educators, marketers, developers, and remote teams. Cap is privacy-first, open source, and built with Tauri (Rust + native UI) so it's fast and uses minimal resources (not Electron). Cap lets you record your screen, camera, or both, then share instantly or edit locally with professional tools.
+Cap is the open source alternative to Loom. It's a lightweight, powerful screen recording and video messaging tool for creators, educators, marketers, developers, and remote teams. Cap is privacy-first, open source, and built in Rust with a native interface so it's fast and uses minimal resources (not Electron). Cap lets you record your screen, camera, or both, then share instantly or edit locally with professional tools.
 
 IMPORTANT URLS:
 - Homepage: https://cap.so
@@ -125,7 +125,7 @@ DESKTOP APP SETTINGS:
 - Crash-recoverable recording: on/off (fragments recording for recovery)
 - Max capture framerate: 30, 60, or 120 FPS
 - Automatically open shareable links (Pro): on/off
-- Default project name template with placeholders: {target_name}, {target_kind}, {date}, {time}, {recording_mode}, {mode}, {moment:...}
+- Default project name template with placeholders: {target_name}, {target_kind}, {date}, {time}, {recording_mode}, {mode}, {moment:...}, {random} or {random:N}
 - Excluded windows: hide specific windows from recordings (useful for hiding Cap itself or other tools)
 - Self-host server URL: point desktop app to a self-hosted Cap server
 - Configurable keyboard shortcuts for: screenshot (display/window/area), open recording picker, stop recording, restart recording, pause/resume recording, cycle recording mode, record display/window/area
