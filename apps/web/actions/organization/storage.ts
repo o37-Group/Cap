@@ -1,7 +1,12 @@
 "use server";
 
 import { createHmac } from "node:crypto";
-import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+	HeadBucketCommand,
+	HeadObjectCommand,
+	ListObjectsV2Command,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
 import { decrypt, encrypt } from "@cap/database/crypto";
@@ -154,7 +159,7 @@ const decryptS3Config = async (
 	endpoint: bucket.endpoint
 		? await decrypt(bucket.endpoint)
 		: "https://s3.amazonaws.com",
-	bucketName: await decrypt(bucket.bucketName),
+	bucketName: (await decrypt(bucket.bucketName)).trim(),
 	region: await decrypt(bucket.region),
 });
 
@@ -226,8 +231,17 @@ const getS3ConnectionErrorMessage = (error: unknown, bucketName: string) => {
 	if (getS3ErrorMetadata(error)?.httpStatusCode === 301) {
 		return "Received 301 redirect. This usually means the endpoint URL is incorrect or the bucket is in a different region.";
 	}
+	if (getS3ErrorMetadata(error)?.httpStatusCode === 403) {
+		return "Bucket access denied. Check the access keys and bucket permissions.";
+	}
+	if (getS3ErrorMetadata(error)?.httpStatusCode === 404) {
+		return `Bucket '${bucketName}' was not found at this endpoint.`;
+	}
+	if (getS3ErrorMetadata(error)?.httpStatusCode === 400) {
+		return "The bucket request was rejected. Check the endpoint, bucket name, and region.";
+	}
 
-	return "Failed to connect to S3";
+	return "Failed to connect to S3. Check the endpoint, bucket name, region, and credentials.";
 };
 
 const driveHasStoredData = async (
@@ -433,13 +447,15 @@ export async function saveOrganizationS3Config(input: S3ConfigInput) {
 	if (rejection) {
 		throw new Error(rejection.message);
 	}
+	const bucketName = input.bucketName.trim();
+	if (!bucketName) throw new Error("Enter a bucket name");
 	const credentials = await getS3InputCredentials(input);
 	const encryptedConfig = {
 		provider: input.provider,
 		accessKeyId: await encrypt(credentials.accessKeyId),
 		secretAccessKey: await encrypt(credentials.secretAccessKey),
 		endpoint: input.endpoint ? await encrypt(input.endpoint) : null,
-		bucketName: await encrypt(input.bucketName),
+		bucketName: await encrypt(bucketName),
 		region: await encrypt(input.region),
 		ownerId: user.id,
 		organizationId: input.organizationId,
@@ -496,28 +512,136 @@ export async function testOrganizationS3Config(input: S3ConfigInput) {
 	if (blocked) {
 		throw new Error(blockedS3EndpointMessage);
 	}
-	const credentials = await getS3InputCredentials(input);
+	const bucketName = input.bucketName.trim();
+	if (!bucketName) {
+		return { success: false as const, error: "Enter a bucket name" };
+	}
+	if (input.provider === "cloudflare") {
+		let endpoint: URL;
+		try {
+			endpoint = new URL(input.endpoint);
+		} catch {
+			return {
+				success: false as const,
+				error: "Enter the R2 S3 endpoint from Cloudflare, including https://",
+			};
+		}
+		if (
+			endpoint.protocol !== "https:" ||
+			!endpoint.hostname.endsWith(".r2.cloudflarestorage.com") ||
+			endpoint.pathname !== "/"
+		) {
+			return {
+				success: false as const,
+				error: "Use the R2 S3 endpoint from Cloudflare for this bucket",
+			};
+		}
+		if (input.region !== "auto") {
+			return { success: false as const, error: "Use auto as the R2 region" };
+		}
+	}
+	let credentials: Awaited<ReturnType<typeof getS3InputCredentials>>;
+	const credentialSource =
+		input.accessKeyId.trim() && input.secretAccessKey.trim()
+			? "entered"
+			: "saved";
+	try {
+		credentials = await getS3InputCredentials(input);
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			(error.message === "Access key ID and secret access key are required" ||
+				error.message ===
+					"Enter both access key ID and secret access key to change credentials")
+		) {
+			return { success: false as const, error: error.message };
+		}
+		throw error;
+	}
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), 5000);
 	const s3Client = new S3Client({
 		endpoint: input.endpoint || undefined,
 		region: input.region,
+		forcePathStyle: input.provider === "cloudflare",
 		credentials: {
 			accessKeyId: credentials.accessKeyId,
 			secretAccessKey: credentials.secretAccessKey,
 		},
 		requestHandler: publicOnlyS3Agents(),
 	});
+	let requestTarget: string | undefined;
+	s3Client.middlewareStack?.add(
+		(next) => async (args) => {
+			const request = args.request;
+			if (
+				!requestTarget &&
+				request &&
+				typeof request === "object" &&
+				"hostname" in request &&
+				"path" in request
+			) {
+				requestTarget = `${String(request.hostname)}${String(request.path)}`;
+			}
+			return next(args);
+		},
+		{ step: "build", name: "captureStorageTestTarget" },
+	);
 
 	try {
-		await s3Client.send(new HeadBucketCommand({ Bucket: input.bucketName }), {
-			abortSignal: controller.signal,
-		});
-		return { success: true };
+		await s3Client.send(
+			input.provider === "cloudflare"
+				? new ListObjectsV2Command({
+						Bucket: bucketName,
+						MaxKeys: 1,
+					})
+				: new HeadBucketCommand({ Bucket: bucketName }),
+			{
+				abortSignal: controller.signal,
+			},
+		);
+		return { success: true as const };
 	} catch (error) {
-		throw new Error(getS3ConnectionErrorMessage(error, input.bucketName));
+		const isR2AccessDenied =
+			input.provider === "cloudflare" &&
+			getS3ErrorMetadata(error)?.httpStatusCode === 403;
+		let objectReadStatus: number | undefined;
+		if (isR2AccessDenied) {
+			try {
+				await s3Client.send(
+					new HeadObjectCommand({
+						Bucket: bucketName,
+						Key: `cap-connection-test/${nanoId()}`,
+					}),
+					{ abortSignal: controller.signal },
+				);
+				objectReadStatus = 200;
+			} catch (probeError) {
+				objectReadStatus = getS3ErrorMetadata(probeError)?.httpStatusCode;
+			}
+		}
+		console.error("[organization-storage] S3 connection test failed", {
+			name: error instanceof Error ? error.name : "Unknown",
+			status: getS3ErrorMetadata(error)?.httpStatusCode,
+			requestTarget,
+			credentialSource,
+			objectReadStatus,
+			cause:
+				error instanceof Error && error.cause instanceof Error
+					? error.cause.name
+					: undefined,
+		});
+		return {
+			success: false as const,
+			error:
+				getS3ConnectionErrorMessage(error, bucketName) +
+				(isR2AccessDenied
+					? ` Tested ${credentialSource} keys. Object read check: ${objectReadStatus ? `HTTP ${objectReadStatus}` : "unavailable"}.`
+					: ""),
+		};
 	} finally {
 		clearTimeout(timeoutId);
+		s3Client.destroy();
 	}
 }
 
